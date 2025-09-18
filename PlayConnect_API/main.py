@@ -5,6 +5,10 @@ from PlayConnect_API.schemas.Users import UserRead, UserCreate
 from PlayConnect_API.Database import connect_to_db, disconnect_db
 from PlayConnect_API import Database
 
+from PlayConnect_API.schemas.Coaches import CoachRead, CoachCreate 
+from PlayConnect_API.schemas.User_stats import UserStatCreate, UserStatRead
+
+
 app = FastAPI()
 
 @app.on_event("startup")
@@ -55,3 +59,69 @@ async def create_user(user: UserCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
+#coaches endpoints
+@app.get("/coaches", response_model=List[CoachRead])
+async def get_coaches():
+    try:
+        async with Database.pool.acquire() as connection:
+            rows = await connection.fetch('SELECT * FROM public."Coaches"')
+            coaches = [CoachRead(**dict(row)) for row in rows]
+            return coaches
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/coaches", response_model=CoachRead)
+async def create_coach(coach: CoachCreate):
+    try:
+        async with Database.pool.acquire() as connection:
+            query = '''
+                INSERT INTO public."Coaches" (experience_yrs, certifications, isverified, hourly_rate)
+                VALUES ($1, $2, $3, $4)
+                RETURNING coach_id, experience_yrs, certifications, isverified, hourly_rate, created_at
+            '''
+            row = await connection.fetchrow(
+                query,
+                coach.experience_yrs,
+                coach.certifications,
+                coach.isverified,
+                coach.hourly_rate
+            )
+            return CoachRead(**dict(row))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+#USER_STATS endpoints
+@app.get("/user_stats", response_model=List[UserStatRead])
+async def get_user_stats():
+    try:
+        async with Database.pool.acquire() as connection:
+            rows = await connection.fetch('SELECT * FROM public."User_stats"')
+            stats = [UserStatRead(**dict(row)) for row in rows]
+            return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/user_stats", response_model=UserStatRead)
+async def create_user_stat(stat: UserStatCreate):
+    try:
+        async with Database.pool.acquire() as connection:
+            query = '''
+                INSERT INTO public."User_stats" (user_id, games_played, games_hosted, attendance_rate, sport_id)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING user_id, games_played, games_hosted, attendance_rate, sport_id
+            '''
+            row = await connection.fetchrow(
+                query,
+                stat.user_id,
+                stat.games_played,
+                stat.games_hosted,
+                stat.attendance_rate,
+                stat.sport_id
+            )
+            return UserStatRead(**dict(row))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
