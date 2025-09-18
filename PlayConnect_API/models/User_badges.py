@@ -5,7 +5,8 @@ from sqlalchemy.sql import func
 Base = declarative_base()
 
 class UserBadge(Base):
-    __tablename__ = "User_badges"   
+    __tablename__ = "User_badges" 
+    __table_args__ = {"schema": "public"}  
 
     user_id = Column(Integer, ForeignKey("Users.user_id", ondelete="CASCADE"), primary_key=True)
     badge_id = Column(Integer, ForeignKey("Badges.badge_id", ondelete="CASCADE"), primary_key=True)

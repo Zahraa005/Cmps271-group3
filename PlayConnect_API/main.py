@@ -1,15 +1,45 @@
 from typing import Union, List
 import asyncpg
 from fastapi import FastAPI, Depends, HTTPException
+
 from PlayConnect_API.schemas.Users import UserRead, UserCreate
 from PlayConnect_API.Database import connect_to_db, disconnect_db
 from PlayConnect_API import Database
+from PlayConnect_API.schemas.Registration import Registration
 
 from PlayConnect_API.schemas.Coaches import CoachRead, CoachCreate 
 from PlayConnect_API.schemas.User_stats import UserStatCreate, UserStatRead
 
 
 app = FastAPI()
+
+@app.post("/register")
+async def register_user(reg: Registration):
+    try:
+        async with Database.pool.acquire() as connection:
+            query = '''
+                INSERT INTO public."Users" (first_name, last_name, email, password, age, created_at, isverified, role)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                RETURNING user_id, first_name, last_name, email, age, created_at, isverified, role
+            '''
+            from datetime import datetime
+            created_at = reg.created_at if reg.created_at else datetime.utcnow()
+            isverified = False
+            role = "player"
+            row = await connection.fetchrow(
+                query,
+                reg.first_name,
+                reg.last_name,
+                reg.email,
+                reg.password,
+                reg.age,
+                created_at,
+                isverified,
+                role
+            )
+            return dict(row) if row else None
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.on_event("startup")
 async def startup():

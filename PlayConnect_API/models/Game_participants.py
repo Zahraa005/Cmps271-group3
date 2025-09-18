@@ -13,6 +13,7 @@ class RoleEnum(str, enum.Enum):
 
 class GameParticipant(Base):
    __tablename__ = 'Game_participants'
+   __table_args__ = {'schema': 'public'}
 
 game_id = Column(Integer, ForeignKey("Game_instance.game_id", ondelete="CASCADE"), primary_key=True)
 user_id = Column(Integer, ForeignKey("Users.user_id", ondelete="CASCADE"), primary_key=True)
