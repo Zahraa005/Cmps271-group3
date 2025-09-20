@@ -6,7 +6,8 @@ from pydantic import BaseModel, EmailStr
 from PlayConnect_API.schemas.Users import UserRead, UserCreate
 from PlayConnect_API.Database import connect_to_db, disconnect_db
 from PlayConnect_API import Database
-from PlayConnect_API.schemas.Registration import Registration
+from PlayConnect_API.schemas.registration import RegisterRequest
+
 
 from PlayConnect_API.schemas.Coaches import CoachRead, CoachCreate 
 from PlayConnect_API.schemas.User_stats import UserStatCreate, UserStatRead
@@ -42,7 +43,7 @@ async def ensure_password_reset_table():
         )
 
 @app.post("/register")
-async def register_user(reg: Registration):
+async def register_user(reg: RegisterRequest):
     try:
         async with Database.pool.acquire() as connection:
             query = '''

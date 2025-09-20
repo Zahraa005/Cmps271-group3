@@ -1,15 +1,20 @@
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from pydantic import BaseModel, EmailStr
 from datetime import datetime
+from typing import Union
 
-class Registration(BaseModel):
+
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
     first_name: str
     last_name: str
-    email: EmailStr
-    password: str = Field(..., min_length=6)
     age: int
-    created_at: Optional[datetime] = None
-    isverified: bool = False
-    role: str = "player"
-    
-  
+    created_at: Union[datetime, None] = None
+
+class RegisterResponse(BaseModel):
+    user_id: int
+    email: EmailStr
+    first_name: str
+    last_name: str
+    age: int
+    created_at: Union[datetime, None] = None

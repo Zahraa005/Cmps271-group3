@@ -1,5 +1,6 @@
-from pydantic import BaseModel, Emailstr
+from pydantic import BaseModel, EmailStr
 from datetime import datetime
+from typing import Union
 
 
 class RegisterRequest(BaseModel):
@@ -8,7 +9,7 @@ class RegisterRequest(BaseModel):
     first_name: str
     last_name: str
     age: int
-    created_at: datetime | None = None
+    created_at: Union[datetime, None] = None
 
 class RegisterResponse(BaseModel):
     user_id: int
@@ -16,4 +17,4 @@ class RegisterResponse(BaseModel):
     first_name: str
     last_name: str
     age: int
-    created_at: datetime | None = None
+    created_at: Union[datetime, None] = None
