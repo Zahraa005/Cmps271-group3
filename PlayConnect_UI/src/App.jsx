@@ -3,6 +3,9 @@ import "./App.css"
 
 
 import ProfileCreation from "./pages/ProfileCreation"
+import HomePage from "./pages/HomePage";
+
+
 
 
 function Home() {
@@ -18,7 +21,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         {/* homepage */}
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<HomePage />} />
 
         {/* profile creation */}
         <Route path="/onboarding/profile" element={<ProfileCreation />} />
