@@ -9,6 +9,9 @@ from PlayConnect_API.schemas.Registration import Registration
 
 from PlayConnect_API.schemas.Coaches import CoachRead, CoachCreate 
 from PlayConnect_API.schemas.User_stats import UserStatCreate, UserStatRead
+from PlayConnect_API.schemas.Game_Instance import GameInstanceCreate, GameInstanceResponse
+
+from datetime import datetime, timezone
 
 
 app = FastAPI()
@@ -22,7 +25,6 @@ async def register_user(reg: Registration):
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 RETURNING user_id, first_name, last_name, email, age, created_at, isverified, role
             '''
-            from datetime import datetime
             created_at = reg.created_at if reg.created_at else datetime.utcnow()
             isverified = False
             role = "player"
@@ -155,3 +157,64 @@ async def create_user_stat(stat: UserStatCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/game-instances", response_model=GameInstanceResponse)
+async def create_game_instance(game: GameInstanceCreate):
+    try:
+        async with Database.pool.acquire() as connection:
+            query = '''
+                INSERT INTO public."Game_instance" (
+                    host_id, sport_id, start_time, duration_minutes,
+                    location, skill_level, max_players, cost, status, notes
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                RETURNING *
+            '''
+            # Handle timezone conversion properly
+            start_time = game.start_time
+            if start_time.tzinfo is not None:
+                # If timezone-aware, convert to UTC and make it timezone-naive
+                start_time = start_time.astimezone(timezone.utc).replace(tzinfo=None)
+            else:
+                # If timezone-naive, assume it's already UTC
+                pass
+            
+            row = await connection.fetchrow(
+                query,
+                game.host_id,
+                game.sport_id,
+                start_time,
+                game.duration_minutes,
+                game.location,
+                game.skill_level,
+                game.max_players,
+                game.cost,
+                game.status,
+                game.notes
+            )
+            return GameInstanceResponse(**dict(row))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/game-instances", response_model=List[GameInstanceResponse])
+async def get_game_instances():
+    try:
+        async with Database.pool.acquire() as connection:
+            query = 'SELECT * FROM public."Game_instance" ORDER BY created_at DESC'
+            rows = await connection.fetch(query)
+            return [GameInstanceResponse(**dict(row)) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/game-instances/{game_id}", response_model=GameInstanceResponse)
+async def get_game_instance(game_id: int):
+    try:
+        async with Database.pool.acquire() as connection:
+            query = 'SELECT * FROM public."Game_instance" WHERE game_id = $1'
+            row = await connection.fetchrow(query, game_id)
+            if row is None:
+                raise HTTPException(status_code=404, detail="Game instance not found")
+            return GameInstanceResponse(**dict(row))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
