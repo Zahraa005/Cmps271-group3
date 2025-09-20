@@ -1,6 +1,7 @@
 from typing import Union, List
 import asyncpg
 from fastapi import FastAPI, Depends, HTTPException
+from pydantic import BaseModel, EmailStr
 
 from PlayConnect_API.schemas.Users import UserRead, UserCreate
 from PlayConnect_API.Database import connect_to_db, disconnect_db
@@ -10,11 +11,35 @@ from PlayConnect_API.schemas.Registration import Registration
 from PlayConnect_API.schemas.Coaches import CoachRead, CoachCreate 
 from PlayConnect_API.schemas.User_stats import UserStatCreate, UserStatRead
 from PlayConnect_API.schemas.Game_Instance import GameInstanceCreate, GameInstanceResponse
+from PlayConnect_API.schemas.ForgotPasswordRequest import ForgotPasswordRequestCreate
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+import os, secrets, hashlib
+
 
 
 app = FastAPI()
+
+
+def _sha256_hex(s: str) -> str:
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+async def ensure_password_reset_table():
+    
+    async with Database.pool.acquire() as connection:
+        await connection.execute(
+            '''
+            CREATE TABLE IF NOT EXISTS public."Password_reset_tokens" (
+                id BIGSERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES public."Users"(user_id) ON DELETE CASCADE,
+                token_hash TEXT NOT NULL,
+                expires_at TIMESTAMPTZ NOT NULL,
+                used_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_pwdreset_user_expires ON public."Password_reset_tokens" (user_id, expires_at);
+            '''
+        )
 
 @app.post("/register")
 async def register_user(reg: Registration):
@@ -43,9 +68,46 @@ async def register_user(reg: Registration):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+
+@app.post("/forgot-password", status_code=202)
+async def forgot_password(payload: ForgotPasswordRequestCreate):
+   
+    ttl_minutes = int(os.getenv("RESET_TOKEN_TTL_MINUTES", "30"))
+    app_url = os.getenv("APP_URL", "http://localhost:5173")
+
+    try:
+        async with Database.pool.acquire() as connection:
+            user = await connection.fetchrow(
+                'SELECT user_id, email FROM public."Users" WHERE LOWER(email) = LOWER($1) LIMIT 1',
+                payload.email,
+            )
+
+            if user:
+                raw_token = secrets.token_urlsafe(32)
+                token_hash = _sha256_hex(raw_token)
+                expires_at = datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)
+
+                await connection.execute(
+                    'INSERT INTO public."Password_reset_tokens" (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',
+                    user["user_id"],
+                    token_hash,
+                    expires_at,
+                )
+
+                reset_url = f"{app_url}/reset-password?token={raw_token}"
+                if os.getenv("ENV", "dev").lower() != "production":
+                    print(f"[DEV ONLY] Password reset link for {user['email']}: {reset_url}")
+
+        return {"message": "If an account exists for that email, you will receive a reset link shortly."}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.on_event("startup")
 async def startup():
     await connect_to_db()
+    await ensure_password_reset_table()
 
 @app.on_event("shutdown")
 async def shutdown():
