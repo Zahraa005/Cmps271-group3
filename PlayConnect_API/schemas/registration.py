@@ -10,7 +10,6 @@ class RegisterRequest(BaseModel):
     age: int
     created_at: datetime | None = None
 
-
 class RegisterResponse(BaseModel):
     user_id: int
     email: EmailStr
