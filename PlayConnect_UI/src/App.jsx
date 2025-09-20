@@ -1,12 +1,9 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom"
+﻿import { BrowserRouter, Routes, Route } from "react-router-dom"
 import "./App.css"
-
 
 import ProfileCreation from "./pages/ProfileCreation"
 import HomePage from "./pages/HomePage";
-
-
-
+import LoginPage from "./pages/LoginPage";
 
 function Home() {
   return (
@@ -22,6 +19,9 @@ function App() {
       <Routes>
         {/* homepage */}
         <Route path="/" element={<HomePage />} />
+
+        {/* login page */}
+        <Route path="/login" element={<LoginPage />} />
 
         {/* profile creation */}
         <Route path="/onboarding/profile" element={<ProfileCreation />} />

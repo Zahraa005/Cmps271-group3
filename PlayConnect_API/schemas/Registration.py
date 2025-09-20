@@ -14,7 +14,7 @@ class RegisterRequest(BaseModel):
 class RegisterResponse(BaseModel):
     user_id: int
     email: EmailStr
-    first_name: str
+    first_name: str 
     last_name: str
     age: int
     created_at: Union[datetime, None] = None
