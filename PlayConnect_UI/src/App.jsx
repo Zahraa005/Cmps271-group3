@@ -4,6 +4,8 @@ import "./App.css"
 import ProfileCreation from "./pages/ProfileCreation"
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
+import RegistrationPage from "./pages/RegistrationPage"
+
 
 function Home() {
   return (
