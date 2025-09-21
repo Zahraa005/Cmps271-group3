@@ -23,6 +23,9 @@ function App() {
         {/* login page */}
         <Route path="/login" element={<LoginPage />} />
 
+        {/* registration */}
+        <Route path="/signup" element={<RegistrationPage />} />
+
         {/* profile creation */}
         <Route path="/onboarding/profile" element={<ProfileCreation />} />
       </Routes>
