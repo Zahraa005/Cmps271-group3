@@ -1,6 +1,7 @@
 from typing import Union, List
 import asyncpg
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 
 from PlayConnect_API.schemas.Users import UserRead, UserCreate
@@ -13,6 +14,7 @@ from PlayConnect_API.schemas.Coaches import CoachRead, CoachCreate
 from PlayConnect_API.schemas.User_stats import UserStatCreate, UserStatRead
 from PlayConnect_API.schemas.Game_Instance import GameInstanceCreate, GameInstanceResponse
 from PlayConnect_API.schemas.ForgotPasswordRequest import ForgotPasswordRequestCreate
+from PlayConnect_API.schemas.sport import SportRead, SportCreate
 
 from datetime import datetime, timezone, timedelta
 import os, secrets, hashlib
@@ -23,6 +25,15 @@ from email.message import EmailMessage
 
 
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # Frontend URLs
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
+)
 
 # function to send reset email
 async def send_reset_email(to_email: str, reset_url: str):
@@ -153,7 +164,7 @@ async def forgot_password(payload: ForgotPasswordRequestCreate):
                         print(f"[DEV ONLY] Email sent to {user['email']}")
                 except Exception as send_err:
                     #added logs to find problem its been 3 hours :PPPP
-                    print(f"[DEV ONLY] Email send failed: {repr(send_err)}")
+                    print(f"[DEV ONLY] Email send failed: {repr(send_err)}")  
                 if os.getenv("ENV", "dev").lower() != "production":
                     print(f"[DEV ONLY] Password reset link for {user['email']}: {reset_url}")
 
@@ -336,5 +347,17 @@ async def get_game_instance(game_id: int):
             if row is None:
                 raise HTTPException(status_code=404, detail="Game instance not found")
             return GameInstanceResponse(**dict(row))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Sports endpoints
+@app.get("/sports", response_model=List[SportRead])
+async def get_sports():
+    try:
+        async with Database.pool.acquire() as connection:
+            rows = await connection.fetch('SELECT * FROM public."Sports" ORDER BY name')
+            sports = [SportRead(**dict(row)) for row in rows]
+            return sports
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
