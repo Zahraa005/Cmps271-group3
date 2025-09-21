@@ -15,12 +15,62 @@ from PlayConnect_API.schemas.ForgotPasswordRequest import ForgotPasswordRequestC
 
 from datetime import datetime, timezone, timedelta
 import os, secrets, hashlib
+import smtplib, ssl, asyncio
+import certifi
+from email.message import EmailMessage
 
 
 
 app = FastAPI()
 
+# function to send reset email
+async def send_reset_email(to_email: str, reset_url: str):
+    
+    subject = "PlayConnect Password Reset"
+    body_text = f"Click here to reset your password: {reset_url}\nIf you did not request this, ignore this email."
 
+    msg = EmailMessage()
+    msg["From"] = os.getenv("MAIL_FROM", "no-reply@playconnect.com")
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg.set_content(body_text)
+
+    host = os.getenv("SMTP_HOST")
+    user = os.getenv("SMTP_USERNAME")
+    pwd  = os.getenv("SMTP_PASSWORD")
+
+    env = os.getenv("ENV", "dev").lower()
+
+    def _send():
+        context = ssl.create_default_context(cafile=certifi.where())
+        port = int(os.getenv("SMTP_PORT", "587"))
+
+        if env != "production":
+            mode = "SSL" if port == 465 else ("STARTTLS" if port == 587 else "PLAIN")
+            print(f"[DEV ONLY] SMTP -> host:{host} port:{port} mode:{mode}")
+
+        if port == 465:
+            with smtplib.SMTP_SSL(host, port, context=context, timeout=10) as s:
+                if user and pwd:
+                    s.login(user, pwd)
+                s.send_message(msg)
+        elif port == 587:
+            with smtplib.SMTP(host, port, timeout=10) as s:
+                s.starttls(context=context)
+                if user and pwd:
+                    s.login(user, pwd)
+                s.send_message(msg)
+        else:
+            with smtplib.SMTP(host, port, timeout=10) as s:
+                if user and pwd:
+                    s.login(user, pwd)
+                s.send_message(msg)
+
+   
+    return await asyncio.to_thread(_send)
+
+
+# this function hashes tokens
 def _sha256_hex(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
@@ -96,6 +146,13 @@ async def forgot_password(payload: ForgotPasswordRequestCreate):
                 )
 
                 reset_url = f"{app_url}/reset-password?token={raw_token}"
+                try:
+                    await send_reset_email(user["email"], reset_url)
+                    if os.getenv("ENV", "dev").lower() != "production":
+                        print(f"[DEV ONLY] Email sent to {user['email']}")
+                except Exception as send_err:
+                    #added logs to find problem its been 3 hours :PPPP
+                    print(f"[DEV ONLY] Email send failed: {repr(send_err)}")
                 if os.getenv("ENV", "dev").lower() != "production":
                     print(f"[DEV ONLY] Password reset link for {user['email']}: {reset_url}")
 
