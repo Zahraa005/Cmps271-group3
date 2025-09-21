@@ -14,6 +14,7 @@ from PlayConnect_API.schemas.Coaches import CoachRead, CoachCreate
 from PlayConnect_API.schemas.User_stats import UserStatCreate, UserStatRead
 from PlayConnect_API.schemas.Game_Instance import GameInstanceCreate, GameInstanceResponse
 from PlayConnect_API.schemas.ForgotPasswordRequest import ForgotPasswordRequestCreate
+from PlayConnect_API.schemas.Login import LoginRequest, TokenResponse
 from PlayConnect_API.schemas.sport import SportRead, SportCreate
 
 from datetime import datetime, timezone, timedelta
@@ -21,6 +22,7 @@ import os, secrets, hashlib
 import smtplib, ssl, asyncio
 import certifi
 from email.message import EmailMessage
+import jwt
 
 
 
@@ -347,6 +349,54 @@ async def get_game_instance(game_id: int):
             if row is None:
                 raise HTTPException(status_code=404, detail="Game instance not found")
             return GameInstanceResponse(**dict(row))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Authentication endpoints
+@app.post("/login", response_model=TokenResponse)
+async def login(login_request: LoginRequest):
+    try:
+        async with Database.pool.acquire() as connection:
+            # Query user by email
+            query = '''
+                SELECT user_id, email, password, role, first_name, last_name 
+                FROM public."Users" 
+                WHERE LOWER(email) = LOWER($1)
+            '''
+            user = await connection.fetchrow(query, login_request.email)
+            
+            if not user:
+                raise HTTPException(status_code=401, detail="Invalid email or password")
+            
+            # For now, we'll do simple password comparison
+            # In production, you should hash passwords and use proper password verification
+            if user["password"] != login_request.password.get_secret_value():
+                raise HTTPException(status_code=401, detail="Invalid email or password")
+            
+            # Generate JWT token
+            secret_key = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
+            token_expiry = datetime.utcnow() + timedelta(hours=24)  # 24 hour expiry
+            
+            token_payload = {
+                "user_id": user["user_id"],
+                "email": user["email"],
+                "role": user["role"],
+                "exp": token_expiry
+            }
+            
+            access_token = jwt.encode(token_payload, secret_key, algorithm="HS256")
+            
+            return TokenResponse(
+                access_token=access_token,
+                token_type="bearer",
+                expires_in=86400,  # 24 hours in seconds
+                user_id=user["user_id"],
+                role=user["role"]
+            )
+            
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

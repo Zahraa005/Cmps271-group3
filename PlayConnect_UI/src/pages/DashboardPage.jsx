@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useAuth } from "../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 function classNames(...xs) {
   return xs.filter(Boolean).join(" ");
@@ -11,9 +13,12 @@ export default function DashboardPage() {
   const [toast, setToast] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   
+  const { user, isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
+  
   // Form state for creating new games
   const [formData, setFormData] = useState({
-    host_id: 2, // Default host ID - in real app this would come from auth
+    host_id: 0, // Will be set from authenticated user
     sport_id: 0, // Will be set when sports are loaded
     start_time: "",
     duration_minutes: 60,
@@ -40,12 +45,26 @@ export default function DashboardPage() {
     fetchSports();
   }, []);
 
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/login');
+    }
+  }, [isAuthenticated, navigate]);
+
   // Set default sport_id when sports are loaded
   useEffect(() => {
     if (sports.length > 0 && formData.sport_id === 0) {
       setFormData(prev => ({ ...prev, sport_id: sports[0].sport_id }));
     }
   }, [sports, formData.sport_id]);
+
+  // Set user ID when user is loaded
+  useEffect(() => {
+    if (user && formData.host_id === 0) {
+      setFormData(prev => ({ ...prev, host_id: user.user_id }));
+    }
+  }, [user, formData.host_id]);
 
   const fetchGames = async () => {
     try {
@@ -143,7 +162,7 @@ export default function DashboardPage() {
         setToast("Game created successfully!");
         setShowCreateForm(false);
         setFormData({
-          host_id: 2,
+          host_id: user ? user.user_id : 0,
           sport_id: sports.length > 0 ? sports[0].sport_id : 0,
           start_time: "",
           duration_minutes: 60,
@@ -249,6 +268,12 @@ export default function DashboardPage() {
             >
               {showCreateForm ? "Cancel" : "Create Game"}
             </button>
+            <button
+              onClick={logout}
+              className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition-colors"
+            >
+              Logout
+            </button>
             <a 
               href="/" 
               className="text-sm text-neutral-400 hover:text-white transition-colors"
@@ -263,6 +288,9 @@ export default function DashboardPage() {
         <header className="mb-8 text-center">
           <h1 className="text-4xl font-semibold tracking-tight text-white mb-2">Game Dashboard</h1>
           <p className="text-neutral-400">Discover and join upcoming games in your area</p>
+          {user && (
+            <p className="text-sm text-violet-400 mt-2">Welcome back, {user.email}!</p>
+          )}
         </header>
 
         {/* Create Game Form */}

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, SecretStr, root_validator
+from pydantic import BaseModel, EmailStr, SecretStr, model_validator
 from typing import Optional
 
 class LoginRequest(BaseModel):
@@ -7,13 +7,11 @@ class LoginRequest(BaseModel):
     password: SecretStr
     remember_me: bool = False
 
-    @root_validator
-    def require_email_or_username(cls, values):
-        email = values.get("email")
-        username = values.get("username")
-        if not email and not username:
+    @model_validator(mode='after')
+    def require_email_or_username(self):
+        if not self.email and not self.username:
             raise ValueError("Provide either 'email' or 'username'.")
-        return values
+        return self
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -23,4 +21,4 @@ class TokenResponse(BaseModel):
     role: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True

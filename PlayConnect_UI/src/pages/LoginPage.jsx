@@ -1,4 +1,6 @@
 ﻿import { useState, useEffect } from "react";
+import { useAuth } from "../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 function classNames(...xs) {
   return xs.filter(Boolean).join(" ");
@@ -12,6 +14,9 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [errors, setErrors] = useState({});
+  
+  const { login, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
 
   // Form validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -32,6 +37,13 @@ export default function LoginPage() {
     }
   }, [password, errors.password]);
 
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    }
+  }, [isAuthenticated, navigate]);
+
   // Toast cleanup
   useEffect(() => {
     if (!toast) return;
@@ -47,17 +59,18 @@ export default function LoginPage() {
     setErrors({});
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const result = await login(email, password);
       
-      // Simulate successful login
-      setToast("Login successful! Redirecting...");
-      
-      // In a real app, you would handle the actual login logic here
-      // and redirect to the appropriate page
+      if (result.success) {
+        setToast("Login successful! Redirecting...");
+        navigate('/dashboard');
+      } else {
+        setToast(result.error || "Login failed. Please check your credentials.");
+      }
       
     } catch (error) {
-      setToast("Login failed. Please check your credentials.");
+      console.error('Login error:', error);
+      setToast("Login failed. Please try again.");
     } finally {
       setLoading(false);
     }
