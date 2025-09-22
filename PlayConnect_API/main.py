@@ -16,6 +16,8 @@ from PlayConnect_API.schemas.Game_Instance import GameInstanceCreate, GameInstan
 from PlayConnect_API.schemas.ForgotPasswordRequest import ForgotPasswordRequestCreate
 from PlayConnect_API.schemas.Login import LoginRequest, TokenResponse
 from PlayConnect_API.schemas.sport import SportRead, SportCreate
+from PlayConnect_API.schemas.Profile import ProfileCreate, ProfileRead
+
 
 from datetime import datetime, timezone, timedelta
 import os, secrets, hashlib
@@ -411,3 +413,49 @@ async def get_sports():
             return sports
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Profile endpoints
+@app.post("/profile-creation", response_model=ProfileRead, status_code=201)
+async def create_profile(profile: ProfileCreate, user_id: int):
+    
+    try:
+        async with Database.pool.acquire() as connection:
+            user_row = await connection.fetchrow(
+                'SELECT user_id FROM public."Users" WHERE user_id = $1 LIMIT 1',
+                user_id
+            )
+            if not user_row:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            existing = await connection.fetchrow(
+                'SELECT user_id FROM public."Profiles" WHERE user_id = $1 LIMIT 1',
+                user_id
+            )
+            if existing:
+                raise HTTPException(status_code=400, detail="Profile already exists for this user")
+
+            row = await connection.fetchrow(
+                '''
+                INSERT INTO public."Profiles"
+                    (user_id, first_name, last_name, age, favorite_sport, bio, avatar_url, role)
+                VALUES
+                    ($1,      $2,        $3,       $4,  $5,            $6,  $7,         $8)
+                RETURNING
+                    user_id, first_name, last_name, age, favorite_sport, bio, avatar_url, role
+                ''',
+                user_id,
+                profile.first_name,
+                profile.last_name,
+                profile.age,
+                profile.favorite_sport,
+                profile.bio,
+                profile.avatar_url,
+                profile.role,
+            )
+            return ProfileRead(**dict(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
