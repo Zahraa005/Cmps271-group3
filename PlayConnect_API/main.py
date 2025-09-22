@@ -16,8 +16,7 @@ from PlayConnect_API.schemas.Game_Instance import GameInstanceCreate, GameInstan
 from PlayConnect_API.schemas.ForgotPasswordRequest import ForgotPasswordRequestCreate
 from PlayConnect_API.schemas.Login import LoginRequest, TokenResponse
 from PlayConnect_API.schemas.sport import SportRead, SportCreate
-from PlayConnect_API.schemas.Profile import ProfileCreate, ProfileRead
-
+from PlayConnect_API.schemas.Profile import ProfileCreate
 
 from datetime import datetime, timezone, timedelta
 import os, secrets, hashlib
@@ -238,6 +237,47 @@ async def get_coaches():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/profile-creation", response_model=UserRead, status_code=200)
+async def create_profile(profile: ProfileCreate, user_id: int):
+    try:
+        async with Database.pool.acquire() as connection:
+            # Ensure user exists
+            existing = await connection.fetchrow(
+                'SELECT user_id FROM public."Users" WHERE user_id = $1 LIMIT 1',
+                user_id
+            )
+            if not existing:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            # Update user profile fields in Users table
+            row = await connection.fetchrow(
+                '''
+                UPDATE public."Users"
+                SET first_name = $1,
+                    last_name = $2,
+                    age = $3,
+                    favorite_sport = $4,
+                    bio = $5,
+                    avatar_url = $6,
+                    role = $7
+                WHERE user_id = $8
+                RETURNING user_id, email, first_name, last_name, age, avatar_url, bio, favorite_sport, isverified, num_of_strikes, created_at, role
+                ''',
+                profile.first_name,
+                profile.last_name,
+                profile.age,
+                profile.favorite_sport,
+                profile.bio,
+                profile.avatar_url,
+                profile.role,
+                user_id,
+            )
+            return UserRead(**dict(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/coaches", response_model=CoachRead)
 async def create_coach(coach: CoachCreate):
     try:
@@ -355,15 +395,15 @@ async def get_game_instance(game_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Authentication endpoints
+
 @app.post("/login", response_model=TokenResponse)
 async def login(login_request: LoginRequest):
     try:
         async with Database.pool.acquire() as connection:
             # Query user by email
             query = '''
-                SELECT user_id, email, password, role, first_name, last_name 
-                FROM public."Users" 
+                SELECT user_id, email, password, role, first_name, last_name
+                FROM public."Users"
                 WHERE LOWER(email) = LOWER($1)
             '''
             user = await connection.fetchrow(query, login_request.email)
@@ -371,8 +411,7 @@ async def login(login_request: LoginRequest):
             if not user:
                 raise HTTPException(status_code=401, detail="Invalid email or password")
             
-            # For now, we'll do simple password comparison
-            # In production, you should hash passwords and use proper password verification
+           
             if user["password"] != login_request.password.get_secret_value():
                 raise HTTPException(status_code=401, detail="Invalid email or password")
             
@@ -383,7 +422,7 @@ async def login(login_request: LoginRequest):
             token_payload = {
                 "user_id": user["user_id"],
                 "email": user["email"],
-                "role": user["role"],
+                "role": user["role"],                   #used JWT to track user login and to track who is creating games in the dashboard
                 "exp": token_expiry
             }
             
@@ -413,49 +452,3 @@ async def get_sports():
             return sports
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-# Profile endpoints
-@app.post("/profile-creation", response_model=ProfileRead, status_code=201)
-async def create_profile(profile: ProfileCreate, user_id: int):
-    
-    try:
-        async with Database.pool.acquire() as connection:
-            user_row = await connection.fetchrow(
-                'SELECT user_id FROM public."Users" WHERE user_id = $1 LIMIT 1',
-                user_id
-            )
-            if not user_row:
-                raise HTTPException(status_code=404, detail="User not found")
-
-            existing = await connection.fetchrow(
-                'SELECT user_id FROM public."Profiles" WHERE user_id = $1 LIMIT 1',
-                user_id
-            )
-            if existing:
-                raise HTTPException(status_code=400, detail="Profile already exists for this user")
-
-            row = await connection.fetchrow(
-                '''
-                INSERT INTO public."Profiles"
-                    (user_id, first_name, last_name, age, favorite_sport, bio, avatar_url, role)
-                VALUES
-                    ($1,      $2,        $3,       $4,  $5,            $6,  $7,         $8)
-                RETURNING
-                    user_id, first_name, last_name, age, favorite_sport, bio, avatar_url, role
-                ''',
-                user_id,
-                profile.first_name,
-                profile.last_name,
-                profile.age,
-                profile.favorite_sport,
-                profile.bio,
-                profile.avatar_url,
-                profile.role,
-            )
-            return ProfileRead(**dict(row))
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-

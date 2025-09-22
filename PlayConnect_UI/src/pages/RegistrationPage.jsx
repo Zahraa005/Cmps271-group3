@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function RegistrationPage() {
     const [form, setForm] = useState({
@@ -8,23 +9,89 @@ export default function RegistrationPage() {
         email: "",
         password: "",
         confirmPassword: "",
+        age: "",
     });
 
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [submitted, setSubmitted] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
 
     const navigate = useNavigate();
+    const { login } = useAuth();
 
     const handleChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setSubmitted(true);
+        setErrorMessage("");
+
         if (form.password !== form.confirmPassword) return;
-        navigate("/onboarding/profile");
+
+        // Basic age validation
+        const ageInt = parseInt(form.age, 10);
+        if (Number.isNaN(ageInt) || ageInt < 0) {
+            setErrorMessage("Please enter a valid age.");
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const response = await fetch("http://127.0.0.1:8000/register", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    email: form.email,
+                    password: form.password,
+                    first_name: form.firstName,
+                    last_name: form.lastName,
+                    age: ageInt,
+                    created_at: new Date().toISOString(),
+                }),
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(text || "Registration failed");
+            }
+
+            // On success, store onboarding seed for profile page prefill
+            let regData = null;
+            try {
+                regData = await response.json();
+            } catch (_) {
+                regData = null;
+            }
+            const seed = {
+                user_id: regData?.user_id ?? undefined,
+                first_name: form.firstName,
+                last_name: form.lastName,
+                age: ageInt,
+                email: form.email,
+            };
+            try {
+                localStorage.setItem("onboarding_seed", JSON.stringify(seed));
+            } catch (_) {}
+
+            // Auto-login so onboarding can also rely on auth if available
+            try {
+                await login(form.email, form.password);
+            } catch (_) {
+                // ignore login failure, still navigate
+            }
+            // Then go to onboarding
+            navigate("/onboarding/profile");
+        } catch (err) {
+            setErrorMessage(err?.message || "Registration failed");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const passwordsMatch =
@@ -162,6 +229,18 @@ export default function RegistrationPage() {
                             required
                         />
 
+                        {/* Age */}
+                        <input
+                            type="number"
+                            name="age"
+                            placeholder="Age"
+                            value={form.age}
+                            onChange={handleChange}
+                            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-700 px-3 py-2 outline-none focus:ring-2 focus:ring-violet-500"
+                            min="0"
+                            required
+                        />
+
                         {/* Password */}
                         <div className="relative">
                             <input
@@ -205,13 +284,17 @@ export default function RegistrationPage() {
                         {submitted && form.password !== form.confirmPassword && (
                             <p className="text-xs text-rose-400 -mt-1">Passwords do not match</p>
                         )}
+                        {errorMessage && (
+                            <p className="text-sm text-rose-400 -mt-1">{errorMessage}</p>
+                        )}
 
                         {/* Submit */}
                         <button
                             type="submit"
-                            className="w-full rounded-lg text-white font-semibold px-4 py-2 shadow transition bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 hover:brightness-110"
+                            disabled={isSubmitting}
+                            className={`w-full rounded-lg text-white font-semibold px-4 py-2 shadow transition bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 ${isSubmitting ? "opacity-70 cursor-not-allowed" : "hover:brightness-110"}`}
                         >
-                            Sign Up
+                            {isSubmitting ? "Signing Up..." : "Sign Up"}
                         </button>
                     </form>
 

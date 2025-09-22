@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 
 const ALL_SPORTS = [
@@ -65,6 +67,11 @@ export default function ProfileCreation() {
 
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  const [error, setError] = useState("");
+  const [role, setRole] = useState("player");
+  const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
+  const [userDetails, setUserDetails] = useState(null);
 
 
   const debouncedUsername = useDebounced(username, 400);
@@ -98,6 +105,7 @@ export default function ProfileCreation() {
   }
 
 
+  const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
   useEffect(() => {
     const draft = localStorage.getItem("pc_onboarding_draft");
     if (draft) {
@@ -109,6 +117,16 @@ export default function ProfileCreation() {
         setSports(Array.isArray(d.sports) ? d.sports.slice(0, 5) : []);
       } catch {}
     }
+    // seed from registration if no draft name
+    const seedRaw = localStorage.getItem("onboarding_seed");
+    if (!name && seedRaw) {
+      try {
+        const seed = JSON.parse(seedRaw);
+        const full = [seed.first_name, seed.last_name].filter(Boolean).join(" ").trim();
+        if (full) setName(full);
+      } catch {}
+    }
+    setHasLoadedDraft(true);
   }, []);
   useEffect(() => {
     localStorage.setItem(
@@ -126,6 +144,41 @@ export default function ProfileCreation() {
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
+
+  // Load user details required by backend (first_name, last_name, age)
+  useEffect(() => {
+    let cancelled = false;
+    async function loadUserDetails() {
+      // allow proceeding without auth by using onboarding seed
+      const seedRaw = localStorage.getItem("onboarding_seed");
+      const seed = seedRaw ? (() => { try { return JSON.parse(seedRaw); } catch { return null; } })() : null;
+      const effectiveUserId = (isAuthenticated && user?.user_id) ? user.user_id : (seed?.user_id ?? null);
+      if (!effectiveUserId) return;
+      // If we already have details, skip
+      if (userDetails?.user_id === effectiveUserId) return;
+      try {
+        const res = await fetch("http://127.0.0.1:8000/users");
+        if (!res.ok) return;
+        const all = await res.json();
+        const me = all.find((u) => u.user_id === effectiveUserId);
+        if (!cancelled && me) {
+          setUserDetails(me);
+          // Pre-fill name only once when there's no draft/name yet; prefer auth names if present
+          const authFull = [user?.first_name, user?.last_name].filter(Boolean).join(" ").trim();
+          const fetchedFull = [me.first_name, me.last_name].filter(Boolean).join(" ").trim();
+          const seedFull = [seed?.first_name, seed?.last_name].filter(Boolean).join(" ").trim();
+          const full = authFull || fetchedFull;
+          if (full && hasLoadedDraft && !name) setName(full);
+        }
+      } catch {
+        // ignore
+      }
+    }
+    loadUserDetails();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, user, name, userDetails, hasLoadedDraft]);
 
 
   useEffect(() => {
@@ -182,11 +235,70 @@ export default function ProfileCreation() {
   const onSave = async () => {
     if (!canSave) return;
     setSaving(true);
-    await new Promise(r => setTimeout(r, 600)); // simulate API
-    setSaving(false);
-    setToast("Profile saved");
-    localStorage.removeItem("pc_onboarding_draft");
+    setError("");
+    try {
+      // Determine user_id from auth or onboarding seed
+      const seedRaw = localStorage.getItem("onboarding_seed");
+      const seed = seedRaw ? (() => { try { return JSON.parse(seedRaw); } catch { return null; } })() : null;
+      const effectiveUserId = (isAuthenticated && user?.user_id) ? user.user_id : (seed?.user_id ?? null);
+      if (!effectiveUserId) throw new Error("Missing user id for profile creation.");
 
+      // Ensure we have required backend fields
+      const first_name = userDetails?.first_name || "";
+      const last_name = userDetails?.last_name || "";
+      const age = typeof userDetails?.age === "number" ? userDetails.age : undefined;
+
+      if (!first_name || !last_name || typeof age !== "number") {
+        // Try one last fetch if missing
+        try {
+          const res = await fetch("http://127.0.0.1:8000/users");
+          if (res.ok) {
+            const all = await res.json();
+            const me = all.find((u) => u.user_id === user.user_id);
+            if (me) {
+              setUserDetails(me);
+            }
+          }
+        } catch {}
+      }
+
+      const effective = userDetails || {};
+      const payload = {
+        // backend requires these even if not shown in UI
+        first_name: effective.first_name || first_name || "",
+        last_name: effective.last_name || last_name || "",
+        age: typeof effective.age === "number" ? effective.age : (typeof age === "number" ? age : 0),
+        favorite_sport: sports[0] || "",
+        bio,
+        avatar_url: avatarUrl || "",
+        role,
+      };
+      const url = `http://127.0.0.1:8000/profile-creation?user_id=${encodeURIComponent(effectiveUserId)}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        let msg = "Failed to save profile";
+        try {
+          const data = await res.json();
+          msg = data?.detail ? (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail)) : msg;
+        } catch {
+          const text = await res.text();
+          if (text) msg = text;
+        }
+        throw new Error(msg);
+      }
+      setToast("Profile saved");
+      localStorage.removeItem("pc_onboarding_draft");
+      localStorage.removeItem("onboarding_seed");
+      navigate("/dashboard");
+    } catch (e) {
+      setError(e?.message || "Failed to save profile");
+    } finally {
+      setSaving(false);
+    }
   };
   const previewSports = sports.length ? sports : ["Padel", "Football"];
   const previewVisible = previewSports.slice(0, 2);
@@ -424,6 +536,20 @@ export default function ProfileCreation() {
               </div>
             </div>
 
+            {/* Role */}
+            <div>
+              <label className="block text-sm mb-1">Role</label>
+              <select
+                className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-3 outline-none shadow-sm focus:ring-2 focus:ring-violet-500"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+              >
+                <option value="player">Player</option>
+                <option value="coach">Coach</option>
+                <option value="organizer">Organizer</option>
+              </select>
+            </div>
+
             {/* Sports */}
             <div>
               <div className="flex items-end justify-between gap-3">
@@ -501,6 +627,9 @@ export default function ProfileCreation() {
                   Skip for now
                 </button>
               </div>
+              {error && (
+                <p className="mt-2 text-xs text-rose-400">{error}</p>
+              )}
             </div>
             
             {/* Actions — desktop inline */}
@@ -522,6 +651,9 @@ export default function ProfileCreation() {
               >
                 Skip for now
               </button>
+              {error && (
+                <p className="self-center text-xs text-rose-400">{error}</p>
+              )}
             </div>
           </section>
 
