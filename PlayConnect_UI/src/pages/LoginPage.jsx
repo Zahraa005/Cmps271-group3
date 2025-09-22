@@ -121,8 +121,10 @@ export default function LoginPage() {
       <div className="px-4 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-2xl font-bold text-white">
-            <span>PlayConnect</span>
-            <span></span>
+            <a href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">              
+              <span>PlayConnect</span>
+              <span>🏀🎾</span>
+            </a>
           </div>
           <a 
             href="/" 

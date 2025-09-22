@@ -37,9 +37,9 @@ export default function HomePage() {
           <a href="/login" className="px-4 py-2 rounded-lg border border-black text-black bg-white hover:bg-neutral-900 hover:text-black transition">
             Login
           </a>
-          <button className="px-4 py-2 rounded-lg bg-yellow-400 text-black font-semibold hover:bg-yellow-500 transition">
+          <a href="/signup" className="px-4 py-2 rounded-lg border border-black text-black bg-white hover:bg-neutral-900 hover:text-black transition">
             Sign Up
-          </button>
+          </a>
         </div>
       </nav>
 

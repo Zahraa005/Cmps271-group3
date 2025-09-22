@@ -23,6 +23,26 @@ export const AuthProvider = ({ children }) => {
       try {
         const parsedUser = JSON.parse(userData);
         setUser(parsedUser);
+
+        // Enrich with name fields if missing
+        if (!parsedUser.first_name || !parsedUser.last_name) {
+          (async () => {
+            try {
+              const res = await fetch('http://127.0.0.1:8000/users');
+              if (res.ok) {
+                const users = await res.json();
+                const match = users.find(u => u.user_id === parsedUser.user_id || u.email === parsedUser.email);
+                if (match) {
+                  const enriched = { ...parsedUser, first_name: match.first_name, last_name: match.last_name };
+                  setUser(enriched);
+                  localStorage.setItem('userData', JSON.stringify(enriched));
+                }
+              }
+            } catch (e) {
+              // Ignore enrichment failures
+            }
+          })();
+        }
       } catch (error) {
         console.error('Error parsing user data:', error);
         localStorage.removeItem('authToken');
@@ -48,13 +68,27 @@ export const AuthProvider = ({ children }) => {
 
       if (response.ok) {
         const data = await response.json();
-        const userData = {
+        let userData = {
           user_id: data.user_id,
           email: email,
           role: data.role,
           token: data.access_token
         };
         
+        // Try to fetch names from users endpoint
+        try {
+          const res = await fetch('http://127.0.0.1:8000/users');
+          if (res.ok) {
+            const users = await res.json();
+            const match = users.find(u => u.user_id === data.user_id || u.email === email);
+            if (match) {
+              userData = { ...userData, first_name: match.first_name, last_name: match.last_name };
+            }
+          }
+        } catch (_) {
+          // If enrichment fails, proceed without names
+        }
+
         setUser(userData);
         localStorage.setItem('authToken', data.access_token);
         localStorage.setItem('userData', JSON.stringify(userData));

@@ -259,7 +259,10 @@ export default function DashboardPage() {
       <div className="px-4 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-2xl font-bold text-white">
-            <span>PlayConnect</span>
+            <a href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
+              <span>PlayConnect</span>
+              <span>🏀🎾</span>
+            </a>
           </div>
           <div className="flex items-center gap-4">
             <button
@@ -289,7 +292,7 @@ export default function DashboardPage() {
           <h1 className="text-4xl font-semibold tracking-tight text-white mb-2">Game Dashboard</h1>
           <p className="text-neutral-400">Discover and join upcoming games in your area</p>
           {user && (
-            <p className="text-sm text-violet-400 mt-2">Welcome back, {user.email}!</p>
+            <p className="text-sm text-violet-400 mt-2">Welcome back, {user.first_name ? `${user.first_name} ${user.last_name ?? ''}`.trim() : user.email}!</p>
           )}
         </header>
 
