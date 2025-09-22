@@ -1,0 +1,587 @@
+import { useState, useEffect } from "react";
+import { useAuth } from "../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+
+function classNames(...xs) {
+  return xs.filter(Boolean).join(" ");
+}
+
+export default function DashboardPage() {
+  const [games, setGames] = useState([]);
+  const [sports, setSports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  
+  const { user, isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
+  
+  // Form state for creating new games
+  const [formData, setFormData] = useState({
+    host_id: 0, // Will be set from authenticated user
+    sport_id: 0, // Will be set when sports are loaded
+    start_time: "",
+    duration_minutes: 60,
+    location: "",
+    skill_level: "Beginner",
+    max_players: 8,
+    cost: 0,
+    status: "Open", // Required field for API
+    notes: ""
+  });
+  const [formLoading, setFormLoading] = useState(false);
+  const [formErrors, setFormErrors] = useState({});
+
+  // Toast cleanup
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  // Fetch games and sports on component mount
+  useEffect(() => {
+    fetchGames();
+    fetchSports();
+  }, []);
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/login');
+    }
+  }, [isAuthenticated, navigate]);
+
+  // Set default sport_id when sports are loaded
+  useEffect(() => {
+    if (sports.length > 0 && formData.sport_id === 0) {
+      setFormData(prev => ({ ...prev, sport_id: sports[0].sport_id }));
+    }
+  }, [sports, formData.sport_id]);
+
+  // Set user ID when user is loaded
+  useEffect(() => {
+    if (user && formData.host_id === 0) {
+      setFormData(prev => ({ ...prev, host_id: user.user_id }));
+    }
+  }, [user, formData.host_id]);
+
+  const fetchGames = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('http://127.0.0.1:8000/game-instances');
+      if (response.ok) {
+        const data = await response.json();
+        setGames(data);
+      } else {
+        setToast("Failed to fetch games");
+      }
+    } catch (error) {
+      console.error('Error fetching games:', error);
+      setToast("Failed to fetch games");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchSports = async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/sports');
+      if (response.ok) {
+        const data = await response.json();
+        setSports(data);
+      } else {
+        console.error('Failed to fetch sports');
+        setToast("Failed to fetch sports");
+      }
+    } catch (error) {
+      console.error('Error fetching sports:', error);
+      setToast("Failed to fetch sports");
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: name === 'sport_id' || name === 'duration_minutes' || name === 'max_players' || name === 'cost' || name === 'host_id' 
+        ? parseInt(value) || 0 
+        : value
+    }));
+    
+    // Clear error when user starts typing
+    if (formErrors[name]) {
+      setFormErrors(prev => ({ ...prev, [name]: null }));
+    }
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    
+    if (!formData.start_time) errors.start_time = "Start time is required";
+    if (!formData.location.trim()) errors.location = "Location is required";
+    if (formData.duration_minutes < 15) errors.duration_minutes = "Duration must be at least 15 minutes";
+    if (formData.max_players < 2) errors.max_players = "Must allow at least 2 players";
+    if (formData.cost < 0) errors.cost = "Cost cannot be negative";
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleCreateGame = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    setFormLoading(true);
+    try {
+      // Prepare the data in the exact format expected by the API
+      const apiData = {
+        host_id: formData.host_id,
+        sport_id: formData.sport_id,
+        start_time: formData.start_time, // Should be ISO string format
+        duration_minutes: formData.duration_minutes,
+        location: formData.location,
+        skill_level: formData.skill_level,
+        max_players: formData.max_players,
+        cost: formData.cost,
+        status: formData.status,
+        notes: formData.notes
+      };
+
+      console.log('Sending data to API:', apiData); // Debug log
+
+      const response = await fetch('http://127.0.0.1:8000/game-instances', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(apiData),
+      });
+
+      if (response.ok) {
+        setToast("Game created successfully!");
+        setShowCreateForm(false);
+        setFormData({
+          host_id: user ? user.user_id : 0,
+          sport_id: sports.length > 0 ? sports[0].sport_id : 0,
+          start_time: "",
+          duration_minutes: 60,
+          location: "",
+          skill_level: "Beginner",
+          max_players: 8,
+          cost: 0,
+          status: "Open",
+          notes: ""
+        });
+        fetchGames(); // Refresh the games list
+      } else {
+        const errorData = await response.json();
+        setToast(`Failed to create game: ${errorData.detail || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error creating game:', error);
+      setToast("Failed to create game");
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const formatDateTime = (dateTimeStr) => {
+    const date = new Date(dateTimeStr);
+    return date.toLocaleString('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const getSportName = (sportId) => {
+    const sport = sports.find(s => s.sport_id === sportId);
+    return sport ? sport.name : `Sport ${sportId}`;
+  };
+
+  const getSkillLevelColor = (level) => {
+    switch (level) {
+      case "Beginner": return "bg-green-500/20 text-green-400 border-green-500/30";
+      case "Intermediate": return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+      case "Advanced": return "bg-red-500/20 text-red-400 border-red-500/30";
+      default: return "bg-neutral-500/20 text-neutral-400 border-neutral-500/30";
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case "Open": return "bg-green-500/20 text-green-400 border-green-500/30";
+      case "Full": return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+      case "Cancelled": return "bg-red-500/20 text-red-400 border-red-500/30";
+      default: return "bg-neutral-500/20 text-neutral-400 border-neutral-500/30";
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-neutral-950 relative overflow-hidden">
+      {/* Background patterns - matching LoginPage */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-20"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+          backgroundPosition: "0 0, 0 0",
+        }}
+      />
+    
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 mix-blend-screen"
+        style={{
+          backgroundImage:
+            "radial-gradient(600px 300px at 20% 0%, rgba(167,139,250,0.18), transparent 60%), radial-gradient(600px 300px at 80% 100%, rgba(244,114,182,0.14), transparent 55%)",
+        }}
+      />
+      
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-5 mix-blend-overlay"
+        style={{
+          backgroundImage:
+            "url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nNScgaGVpZ2h0PSc1JyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnPjxmaWx0ZXIgaWQ9J2EnPjxmZVR1cmJ1bGVuY2UgdHlwZT0ncGVybGluJyBiYXNlRnJlcXVlbmN5PScwLjcnIG51bU9jdGF2ZXM9JzInLz48L2ZpbHRlcj48cmVjdCB3aWR0aD0nNTAnIGhlaWdodD0nNTAnIGZpbHRlcj0ndXJsKCNhKScgZmlsbD0nI2ZmZicvPjwvc3ZnPg==')",
+          backgroundSize: "150px 150px",
+        }}
+      />
+
+      {/* Navigation */}
+      <div className="px-4 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-2xl font-bold text-white">
+            <a href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
+              <span>PlayConnect</span>
+              <span>🏀🎾</span>
+            </a>
+          </div>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setShowCreateForm(!showCreateForm)}
+              className="px-4 py-2 bg-violet-500 hover:bg-violet-400 text-white rounded-lg transition-colors"
+            >
+              {showCreateForm ? "Cancel" : "Create Game"}
+            </button>
+            <button
+              onClick={logout}
+              className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition-colors"
+            >
+              Logout
+            </button>
+            <a 
+              href="/" 
+              className="text-sm text-neutral-400 hover:text-white transition-colors"
+            >
+              Back to Home
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <header className="mb-8 text-center">
+          <h1 className="text-4xl font-semibold tracking-tight text-white mb-2">Game Dashboard</h1>
+          <p className="text-neutral-400">Discover and join upcoming games in your area</p>
+          {user && (
+            <p className="text-sm text-violet-400 mt-2">Welcome back, {user.first_name ? `${user.first_name} ${user.last_name ?? ''}`.trim() : user.email}!</p>
+          )}
+        </header>
+
+        {/* Create Game Form */}
+        {showCreateForm && (
+          <div className="mb-8 max-w-2xl mx-auto">
+            <div className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-6">
+              <h2 className="text-xl font-semibold text-white mb-6">Create New Game</h2>
+              <form onSubmit={handleCreateGame} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm mb-1 text-white">Sport</label>
+                    <select
+                      name="sport_id"
+                      value={formData.sport_id}
+                      onChange={handleInputChange}
+                      className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      disabled={formLoading}
+                    >
+                      {sports.map((sport) => (
+                        <option key={sport.sport_id} value={sport.sport_id}>
+                          {sport.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm mb-1 text-white">Start Time</label>
+                    <input
+                      type="datetime-local"
+                      name="start_time"
+                      value={formData.start_time}
+                      onChange={handleInputChange}
+                      className={classNames(
+                        "w-full rounded-lg bg-neutral-950/70 border px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent",
+                        formErrors.start_time ? "border-red-500" : "border-neutral-800"
+                      )}
+                      disabled={formLoading}
+                    />
+                    {formErrors.start_time && (
+                      <p className="mt-1 text-xs text-red-400">{formErrors.start_time}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm mb-1 text-white">Duration (minutes)</label>
+                    <input
+                      type="number"
+                      name="duration_minutes"
+                      value={formData.duration_minutes}
+                      onChange={handleInputChange}
+                      min="15"
+                      className={classNames(
+                        "w-full rounded-lg bg-neutral-950/70 border px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent",
+                        formErrors.duration_minutes ? "border-red-500" : "border-neutral-800"
+                      )}
+                      disabled={formLoading}
+                    />
+                    {formErrors.duration_minutes && (
+                      <p className="mt-1 text-xs text-red-400">{formErrors.duration_minutes}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm mb-1 text-white">Location</label>
+                    <input
+                      type="text"
+                      name="location"
+                      value={formData.location}
+                      onChange={handleInputChange}
+                      placeholder="Enter location"
+                      className={classNames(
+                        "w-full rounded-lg bg-neutral-950/70 border px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent",
+                        formErrors.location ? "border-red-500" : "border-neutral-800"
+                      )}
+                      disabled={formLoading}
+                    />
+                    {formErrors.location && (
+                      <p className="mt-1 text-xs text-red-400">{formErrors.location}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm mb-1 text-white">Skill Level</label>
+                    <select
+                      name="skill_level"
+                      value={formData.skill_level}
+                      onChange={handleInputChange}
+                      className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      disabled={formLoading}
+                    >
+                      <option value="Beginner">Beginner</option>
+                      <option value="Intermediate">Intermediate</option>
+                      <option value="Advanced">Advanced</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm mb-1 text-white">Max Players</label>
+                    <input
+                      type="number"
+                      name="max_players"
+                      value={formData.max_players}
+                      onChange={handleInputChange}
+                      min="2"
+                      className={classNames(
+                        "w-full rounded-lg bg-neutral-950/70 border px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent",
+                        formErrors.max_players ? "border-red-500" : "border-neutral-800"
+                      )}
+                      disabled={formLoading}
+                    />
+                    {formErrors.max_players && (
+                      <p className="mt-1 text-xs text-red-400">{formErrors.max_players}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm mb-1 text-white">Cost ($)</label>
+                    <input
+                      type="number"
+                      name="cost"
+                      value={formData.cost}
+                      onChange={handleInputChange}
+                      min="0"
+                      step="0.01"
+                      className={classNames(
+                        "w-full rounded-lg bg-neutral-950/70 border px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent",
+                        formErrors.cost ? "border-red-500" : "border-neutral-800"
+                      )}
+                      disabled={formLoading}
+                    />
+                    {formErrors.cost && (
+                      <p className="mt-1 text-xs text-red-400">{formErrors.cost}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm mb-1 text-white">Notes</label>
+                  <textarea
+                    name="notes"
+                    value={formData.notes}
+                    onChange={handleInputChange}
+                    placeholder="Additional notes (optional)"
+                    rows="3"
+                    className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
+                    disabled={formLoading}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={formLoading}
+                  className={classNames(
+                    "w-full rounded-xl py-3 font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-950",
+                    formLoading
+                      ? "bg-neutral-800/80 text-neutral-500 cursor-not-allowed"
+                      : "bg-violet-500 text-white hover:bg-violet-400 active:scale-[0.99] shadow-lg shadow-violet-500/30"
+                  )}
+                >
+                  {formLoading ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+                      </svg>
+                      Creating Game...
+                    </div>
+                  ) : (
+                    "Create Game"
+                  )}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Games List */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-semibold text-white">Upcoming Games</h2>
+            <button
+              onClick={fetchGames}
+              disabled={loading}
+              className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition-colors disabled:opacity-50"
+            >
+              {loading ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="flex items-center gap-2 text-neutral-400">
+                <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+                </svg>
+                Loading games...
+              </div>
+            </div>
+          ) : games.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-neutral-400 mb-4">
+                <svg className="h-12 w-12 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-white mb-2">No games found</h3>
+              <p className="text-neutral-400">Be the first to create a game!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {games.map((game) => (
+                <div key={game.game_id} className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-6 hover:border-neutral-700 transition-colors">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">{getSportName(game.sport_id)}</h3>
+                      <p className="text-sm text-neutral-400">{formatDateTime(game.start_time)}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className={classNames(
+                        "px-2 py-1 rounded-full text-xs font-medium border",
+                        getStatusColor(game.status)
+                      )}>
+                        {game.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm text-neutral-300">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span>{game.location}</span>
+                    </div>
+
+                    <div className="flex items-center gap-4 text-sm text-neutral-300">
+                      <div className="flex items-center gap-1">
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                        </svg>
+                        <span>Max {game.max_players} players</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>{game.duration_minutes} min</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className={classNames(
+                        "px-2 py-1 rounded-full text-xs font-medium border",
+                        getSkillLevelColor(game.skill_level)
+                      )}>
+                        {game.skill_level}
+                      </span>
+                      <span className="text-sm font-medium text-white">
+                        {game.cost > 0 ? `$${game.cost}` : "Free"}
+                      </span>
+                    </div>
+
+                    {game.notes && (
+                      <div className="pt-2 border-t border-neutral-800">
+                        <p className="text-sm text-neutral-400">{game.notes}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <button className="w-full mt-4 py-2 bg-violet-500 hover:bg-violet-400 text-white rounded-lg transition-colors font-medium">
+                    Join Game
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed left-1/2 top-4 -translate-x-1/2 rounded-full bg-neutral-900 border border-neutral-700 px-4 py-2 text-sm text-neutral-100 shadow-lg z-50">
+          {toast}
+        </div>
+      )}
+    </main>
+  );
+}

@@ -1,23 +1,114 @@
 from typing import Union, List
 import asyncpg
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, EmailStr
 
 from PlayConnect_API.schemas.Users import UserRead, UserCreate
 from PlayConnect_API.Database import connect_to_db, disconnect_db
 from PlayConnect_API import Database
-from PlayConnect_API.schemas.Registration import Registration
+from PlayConnect_API.schemas.registration import RegisterRequest
+
 
 from PlayConnect_API.schemas.Coaches import CoachRead, CoachCreate 
 from PlayConnect_API.schemas.User_stats import UserStatCreate, UserStatRead
 from PlayConnect_API.schemas.Game_Instance import GameInstanceCreate, GameInstanceResponse
+from PlayConnect_API.schemas.ForgotPasswordRequest import ForgotPasswordRequestCreate
+from PlayConnect_API.schemas.Login import LoginRequest, TokenResponse
+from PlayConnect_API.schemas.sport import SportRead, SportCreate
+from PlayConnect_API.schemas.Profile import ProfileCreate, ProfileRead
 
-from datetime import datetime, timezone
+
+from datetime import datetime, timezone, timedelta
+import os, secrets, hashlib
+import smtplib, ssl, asyncio
+import certifi
+from email.message import EmailMessage
+import jwt
+
 
 
 app = FastAPI()
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # Frontend URLs
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
+)
+
+# function to send reset email
+async def send_reset_email(to_email: str, reset_url: str):
+    
+    subject = "PlayConnect Password Reset"
+    body_text = f"Click here to reset your password: {reset_url}\nIf you did not request this, ignore this email."
+
+    msg = EmailMessage()
+    msg["From"] = os.getenv("MAIL_FROM", "no-reply@playconnect.com")
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg.set_content(body_text)
+
+    host = os.getenv("SMTP_HOST")
+    user = os.getenv("SMTP_USERNAME")
+    pwd  = os.getenv("SMTP_PASSWORD")
+
+    env = os.getenv("ENV", "dev").lower()
+
+    def _send():
+        context = ssl.create_default_context(cafile=certifi.where())
+        port = int(os.getenv("SMTP_PORT", "587"))
+
+        if env != "production":
+            mode = "SSL" if port == 465 else ("STARTTLS" if port == 587 else "PLAIN")
+            print(f"[DEV ONLY] SMTP -> host:{host} port:{port} mode:{mode}")
+
+        if port == 465:
+            with smtplib.SMTP_SSL(host, port, context=context, timeout=10) as s:
+                if user and pwd:
+                    s.login(user, pwd)
+                s.send_message(msg)
+        elif port == 587:
+            with smtplib.SMTP(host, port, timeout=10) as s:
+                s.starttls(context=context)
+                if user and pwd:
+                    s.login(user, pwd)
+                s.send_message(msg)
+        else:
+            with smtplib.SMTP(host, port, timeout=10) as s:
+                if user and pwd:
+                    s.login(user, pwd)
+                s.send_message(msg)
+
+   
+    return await asyncio.to_thread(_send)
+
+
+# this function hashes tokens
+def _sha256_hex(s: str) -> str:
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+async def ensure_password_reset_table():
+    
+    async with Database.pool.acquire() as connection:
+        await connection.execute(
+            '''
+            CREATE TABLE IF NOT EXISTS public."Password_reset_tokens" (
+                id BIGSERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES public."Users"(user_id) ON DELETE CASCADE,
+                token_hash TEXT NOT NULL,
+                expires_at TIMESTAMPTZ NOT NULL,
+                used_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_pwdreset_user_expires ON public."Password_reset_tokens" (user_id, expires_at);
+            '''
+        )
+
 @app.post("/register")
-async def register_user(reg: Registration):
+async def register_user(reg: RegisterRequest):
     try:
         async with Database.pool.acquire() as connection:
             query = '''
@@ -43,9 +134,53 @@ async def register_user(reg: Registration):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+
+@app.post("/forgot-password", status_code=202)
+async def forgot_password(payload: ForgotPasswordRequestCreate):
+   
+    ttl_minutes = int(os.getenv("RESET_TOKEN_TTL_MINUTES", "30"))
+    app_url = os.getenv("APP_URL", "http://localhost:5173")
+
+    try:
+        async with Database.pool.acquire() as connection:
+            user = await connection.fetchrow(
+                'SELECT user_id, email FROM public."Users" WHERE LOWER(email) = LOWER($1) LIMIT 1',
+                payload.email,
+            )
+
+            if user:
+                raw_token = secrets.token_urlsafe(32)
+                token_hash = _sha256_hex(raw_token)
+                expires_at = datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)
+
+                await connection.execute(
+                    'INSERT INTO public."Password_reset_tokens" (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',
+                    user["user_id"],
+                    token_hash,
+                    expires_at,
+                )
+
+                reset_url = f"{app_url}/reset-password?token={raw_token}"
+                try:
+                    await send_reset_email(user["email"], reset_url)
+                    if os.getenv("ENV", "dev").lower() != "production":
+                        print(f"[DEV ONLY] Email sent to {user['email']}")
+                except Exception as send_err:
+                    #added logs to find problem its been 3 hours :PPPP
+                    print(f"[DEV ONLY] Email send failed: {repr(send_err)}")  
+                if os.getenv("ENV", "dev").lower() != "production":
+                    print(f"[DEV ONLY] Password reset link for {user['email']}: {reset_url}")
+
+        return {"message": "If an account exists for that email, you will receive a reset link shortly."}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.on_event("startup")
 async def startup():
     await connect_to_db()
+    await ensure_password_reset_table()
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -218,3 +353,109 @@ async def get_game_instance(game_id: int):
             return GameInstanceResponse(**dict(row))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Authentication endpoints
+@app.post("/login", response_model=TokenResponse)
+async def login(login_request: LoginRequest):
+    try:
+        async with Database.pool.acquire() as connection:
+            # Query user by email
+            query = '''
+                SELECT user_id, email, password, role, first_name, last_name 
+                FROM public."Users" 
+                WHERE LOWER(email) = LOWER($1)
+            '''
+            user = await connection.fetchrow(query, login_request.email)
+            
+            if not user:
+                raise HTTPException(status_code=401, detail="Invalid email or password")
+            
+            # For now, we'll do simple password comparison
+            # In production, you should hash passwords and use proper password verification
+            if user["password"] != login_request.password.get_secret_value():
+                raise HTTPException(status_code=401, detail="Invalid email or password")
+            
+            # Generate JWT token
+            secret_key = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
+            token_expiry = datetime.utcnow() + timedelta(hours=24)  # 24 hour expiry
+            
+            token_payload = {
+                "user_id": user["user_id"],
+                "email": user["email"],
+                "role": user["role"],
+                "exp": token_expiry
+            }
+            
+            access_token = jwt.encode(token_payload, secret_key, algorithm="HS256")
+            
+            return TokenResponse(
+                access_token=access_token,
+                token_type="bearer",
+                expires_in=86400,  # 24 hours in seconds
+                user_id=user["user_id"],
+                role=user["role"]
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Sports endpoints
+@app.get("/sports", response_model=List[SportRead])
+async def get_sports():
+    try:
+        async with Database.pool.acquire() as connection:
+            rows = await connection.fetch('SELECT * FROM public."Sports" ORDER BY name')
+            sports = [SportRead(**dict(row)) for row in rows]
+            return sports
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Profile endpoints
+@app.post("/profile-creation", response_model=ProfileRead, status_code=201)
+async def create_profile(profile: ProfileCreate, user_id: int):
+    
+    try:
+        async with Database.pool.acquire() as connection:
+            user_row = await connection.fetchrow(
+                'SELECT user_id FROM public."Users" WHERE user_id = $1 LIMIT 1',
+                user_id
+            )
+            if not user_row:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            existing = await connection.fetchrow(
+                'SELECT user_id FROM public."Profiles" WHERE user_id = $1 LIMIT 1',
+                user_id
+            )
+            if existing:
+                raise HTTPException(status_code=400, detail="Profile already exists for this user")
+
+            row = await connection.fetchrow(
+                '''
+                INSERT INTO public."Profiles"
+                    (user_id, first_name, last_name, age, favorite_sport, bio, avatar_url, role)
+                VALUES
+                    ($1,      $2,        $3,       $4,  $5,            $6,  $7,         $8)
+                RETURNING
+                    user_id, first_name, last_name, age, favorite_sport, bio, avatar_url, role
+                ''',
+                user_id,
+                profile.first_name,
+                profile.last_name,
+                profile.age,
+                profile.favorite_sport,
+                profile.bio,
+                profile.avatar_url,
+                profile.role,
+            )
+            return ProfileRead(**dict(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+

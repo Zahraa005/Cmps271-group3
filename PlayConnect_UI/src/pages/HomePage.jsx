@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { motion } from "framer-motion"; 
+import { motion } from "framer-motion";
 
 export default function HomePage() {
   const videoRef = useRef(null);
@@ -34,12 +34,12 @@ export default function HomePage() {
           <a href="/community" className="hover:text-yellow-300 transition">Community</a>
         </div>
         <div className="flex gap-4">
-          <button className="px-4 py-2 rounded-lg border border-black text-black bg-white hover:bg-neutral-900 hover:text-black transition">
+          <a href="/login" className="px-4 py-2 rounded-lg border border-black text-black bg-white hover:bg-neutral-900 hover:text-black transition">
             Login
-          </button>
-          <button className="px-4 py-2 rounded-lg bg-yellow-400 text-black font-semibold hover:bg-yellow-500 transition">
+          </a>
+          <a href="/signup" className="px-4 py-2 rounded-lg border border-black text-black bg-white hover:bg-neutral-900 hover:text-black transition">
             Sign Up
-          </button>
+          </a>
         </div>
       </nav>
 
@@ -74,7 +74,7 @@ export default function HomePage() {
         </h1>
       </div>
 
-      {/* Features Section */} 
+      {/* Features Section */}
       <div className="max-w-6xl mx-auto mt-16 px-4 grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="p-6 bg-white shadow rounded-lg text-center">
           <h3 className="text-xl font-semibold">🏅 Coaches</h3>
