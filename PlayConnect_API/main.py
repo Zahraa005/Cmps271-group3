@@ -17,6 +17,7 @@ from PlayConnect_API.schemas.ForgotPasswordRequest import ForgotPasswordRequestC
 from PlayConnect_API.schemas.Login import LoginRequest, TokenResponse
 from PlayConnect_API.schemas.sport import SportRead, SportCreate
 from PlayConnect_API.schemas.Profile import ProfileCreate
+from PlayConnect_API.schemas.Game_participants import GameParticipantJoin, GameParticipantLeave
 
 from datetime import datetime, timezone, timedelta
 import os, secrets, hashlib
@@ -29,13 +30,13 @@ import jwt
 
 app = FastAPI()
 
-# Add CORS middleware
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # Frontend URLs
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all HTTP methods
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],  
+    allow_headers=["*"],  
 )
 
 # function to send reset email
@@ -417,7 +418,7 @@ async def login(login_request: LoginRequest):
             
             # Generate JWT token
             secret_key = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
-            token_expiry = datetime.utcnow() + timedelta(hours=24)  # 24 hour expiry
+            token_expiry = datetime.utcnow() + timedelta(hours=4)  # 4 hour expiry
             
             token_payload = {
                 "user_id": user["user_id"],
@@ -431,7 +432,7 @@ async def login(login_request: LoginRequest):
             return TokenResponse(
                 access_token=access_token,
                 token_type="bearer",
-                expires_in=86400,  # 24 hours in seconds
+                expires_in=14400,  # 4 hours in seconds
                 user_id=user["user_id"],
                 role=user["role"]
             )
