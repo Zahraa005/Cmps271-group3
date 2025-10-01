@@ -1,9 +1,23 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import { motion } from "framer-motion";
 
 export default function HomePage() {
   const videoRef = useRef(null);
   const [revealBall, setRevealBall] = useState(false);
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+
+  const goToGames = (e) => {
+    if (e) e.preventDefault();
+    const token = localStorage.getItem('authToken');
+    if (isAuthenticated && token) {
+      navigate('/dashboard');
+    } else {
+      navigate('/login');
+    }
+  };
 
   useEffect(() => {
     const vid = videoRef.current;
@@ -30,7 +44,7 @@ export default function HomePage() {
         <div className="hidden md:flex gap-6 text-lg">
           <a href="/" className="hover:text-yellow-300 transition">Home</a>
           <a href="/coaches" className="hover:text-yellow-300 transition">Coaches</a>
-          <a href="/games" className="hover:text-yellow-300 transition">Games</a>
+          <a href="/games" onClick={goToGames} className="hover:text-yellow-300 transition">Games</a>
           <a href="/community" className="hover:text-yellow-300 transition">Community</a>
         </div>
         <div className="flex gap-4">
@@ -99,7 +113,7 @@ export default function HomePage() {
           <button className="px-6 py-3 bg-blue-600 text-blue rounded-lg shadow hover:bg-blue-700 transition">
             Explore Coaches
           </button>
-          <button className="px-6 py-3 bg-green-600 text-blue rounded-lg shadow hover:bg-green-700 transition">
+          <button onClick={goToGames} className="px-6 py-3 bg-green-600 text-blue rounded-lg shadow hover:bg-green-700 transition">
             View Games
           </button>
         </div>
