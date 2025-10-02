@@ -18,6 +18,7 @@ from PlayConnect_API.schemas.Login import LoginRequest, TokenResponse
 from PlayConnect_API.schemas.sport import SportRead, SportCreate
 from PlayConnect_API.schemas.Profile import ProfileCreate
 from PlayConnect_API.schemas.Game_participants import GameParticipantJoin, GameParticipantLeave
+from PlayConnect_API.schemas.Waitlist import WaitlistRead  
 
 from datetime import datetime, timezone, timedelta
 import os, secrets, hashlib
@@ -371,6 +372,55 @@ async def create_game_instance(game: GameInstanceCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.put("/game-instances/{game_id}", response_model=GameInstanceResponse)
+async def update_game_instance(game_id: int, game: GameInstanceCreate):
+    try:
+        async with Database.pool.acquire() as connection:
+            query = '''
+                UPDATE public."Game_instance"
+                SET host_id = $1,
+                    sport_id = $2,
+                    start_time = $3,
+                    duration_minutes = $4,
+                    location = $5,
+                    skill_level = $6,
+                    max_players = $7,
+                    cost = $8,
+                    status = $9,
+                    notes = $10,
+                    updated_at = NOW()
+                WHERE game_id = $11
+                RETURNING *
+            '''
+            
+            # Handle timezone conversion properly
+            start_time = game.start_time
+            if start_time.tzinfo is not None:
+                start_time = start_time.astimezone(timezone.utc).replace(tzinfo=None)
+            else:
+                pass
+            
+            row = await connection.fetchrow(
+                query,
+                game.host_id,
+                game.sport_id,
+                start_time,
+                game.duration_minutes,
+                game.location,
+                game.skill_level,
+                game.max_players,
+                game.cost,
+                game.status,
+                game.notes,
+                game_id
+            )
+            
+            if not row:
+                raise HTTPException(status_code=404, detail="Game instance not found")
+            
+            return GameInstanceResponse(**dict(row))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/game-instances", response_model=List[GameInstanceResponse])
 async def get_game_instances():
@@ -524,6 +574,17 @@ async def get_waitlist(game_id: Union[int, None] = None, user_id: Union[int, Non
 
             rows = await connection.fetch(query, *params)
             return [WaitlistEntryRead(**dict(row)) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/waitlist", response_model=List[WaitlistRead])
+async def get_waitlist():
+    try:
+        async with Database.pool.acquire() as connection:
+            query = 'SELECT * FROM public."Waitlist" ORDER BY joined_at DESC'
+            rows = await connection.fetch(query)
+            return [WaitlistRead(**dict(row)) for row in rows]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
