@@ -17,6 +17,7 @@ from PlayConnect_API.schemas.ForgotPasswordRequest import ForgotPasswordRequestC
 from PlayConnect_API.schemas.Login import LoginRequest, TokenResponse
 from PlayConnect_API.schemas.sport import SportRead, SportCreate
 from PlayConnect_API.schemas.Profile import ProfileCreate
+from PlayConnect_API.schemas.Game_participants import GameParticipantJoin, GameParticipantLeave
 
 from datetime import datetime, timezone, timedelta
 import os, secrets, hashlib
@@ -29,13 +30,13 @@ import jwt
 
 app = FastAPI()
 
-# Add CORS middleware
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # Frontend URLs
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all HTTP methods
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],  
+    allow_headers=["*"],  
 )
 
 # function to send reset email
@@ -417,7 +418,7 @@ async def login(login_request: LoginRequest):
             
             # Generate JWT token
             secret_key = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
-            token_expiry = datetime.utcnow() + timedelta(hours=24)  # 24 hour expiry
+            token_expiry = datetime.utcnow() + timedelta(hours=4)  # 4 hour expiry
             
             token_payload = {
                 "user_id": user["user_id"],
@@ -431,7 +432,7 @@ async def login(login_request: LoginRequest):
             return TokenResponse(
                 access_token=access_token,
                 token_type="bearer",
-                expires_in=86400,  # 24 hours in seconds
+                expires_in=14400,  # 4 hours in seconds
                 user_id=user["user_id"],
                 role=user["role"]
             )
@@ -450,5 +451,134 @@ async def get_sports():
             rows = await connection.fetch('SELECT * FROM public."Sports" ORDER BY name')
             sports = [SportRead(**dict(row)) for row in rows]
             return sports
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Waitlist endpoints
+class WaitlistJoinRequest(BaseModel):
+    game_id: int
+    user_id: int
+
+
+class WaitlistEntryRead(BaseModel):
+    game_id: int
+    user_id: int
+    joined_at: datetime
+    admitted: bool
+
+
+@app.post("/waitlist", status_code=201)
+async def join_waitlist(payload: WaitlistJoinRequest):
+    try:
+        async with Database.pool.acquire() as connection:
+            # Ensure game exists
+            game = await connection.fetchrow(
+                'SELECT game_id FROM public."Game_instance" WHERE game_id = $1 LIMIT 1',
+                payload.game_id,
+            )
+            if not game:
+                raise HTTPException(status_code=404, detail="Game not found")
+
+            # Insert into waitlist; ignore if already present
+            result = await connection.execute(
+                'INSERT INTO public."Waitlist" (game_id, user_id, joined_at, admitted)\n'
+                'VALUES ($1, $2, NOW(), FALSE)\n'
+                'ON CONFLICT (game_id, user_id) DO NOTHING',
+                payload.game_id,
+                payload.user_id,
+            )
+
+            inserted = result and result.startswith("INSERT")
+            return {
+                "message": "Joined waitlist" if inserted else "Already on waitlist",
+                "game_id": payload.game_id,
+                "user_id": payload.user_id,
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/waitlist", response_model=List[WaitlistEntryRead])
+async def get_waitlist(game_id: Union[int, None] = None, user_id: Union[int, None] = None):
+    try:
+        async with Database.pool.acquire() as connection:
+            query = 'SELECT game_id, user_id, joined_at, admitted FROM public."Waitlist"'
+            conditions = []
+            params = []
+
+            if game_id is not None:
+                conditions.append(f"game_id = ${len(params) + 1}")
+                params.append(game_id)
+
+            if user_id is not None:
+                conditions.append(f"user_id = ${len(params) + 1}")
+                params.append(user_id)
+
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+
+            query += " ORDER BY joined_at ASC"
+
+            rows = await connection.fetch(query, *params)
+            return [WaitlistEntryRead(**dict(row)) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/waitlist", status_code=200)
+async def leave_waitlist(game_id: int, user_id: int):
+    try:
+        async with Database.pool.acquire() as connection:
+            result = await connection.execute(
+                'DELETE FROM public."Waitlist" WHERE game_id = $1 AND user_id = $2',
+                game_id,
+                user_id,
+            )
+
+            # result is like "DELETE <count>" in asyncpg
+            deleted = result.split(" ")[-1]
+            if deleted == "0":
+                raise HTTPException(status_code=404, detail="Waitlist entry not found")
+
+            return {"message": "Left waitlist", "game_id": game_id, "user_id": user_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/waitlist/by-user", status_code=200)
+async def remove_user_from_waitlist(user_id: int, game_id: Union[int, None] = None):
+    try:
+        async with Database.pool.acquire() as connection:
+            if game_id is None:
+                result = await connection.execute(
+                    'DELETE FROM public."Waitlist" WHERE user_id = $1',
+                    user_id,
+                )
+            else:
+                result = await connection.execute(
+                    'DELETE FROM public."Waitlist" WHERE user_id = $1 AND game_id = $2',
+                    user_id,
+                    game_id,
+                )
+
+            deleted_count_str = result.split(" ")[-1]
+            deleted_count = int(deleted_count_str) if deleted_count_str.isdigit() else 0
+
+            if deleted_count == 0:
+                raise HTTPException(status_code=404, detail="No waitlist entries found for user")
+
+            return {
+                "message": "Removed from waitlist",
+                "user_id": user_id,
+                "game_id": game_id,
+                "deleted": deleted_count,
+            }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
