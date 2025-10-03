@@ -12,6 +12,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  // Edit state
+  const [editingGame, setEditingGame] = useState(null); // holds the game being edited
+
   
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
@@ -99,6 +102,55 @@ export default function DashboardPage() {
       setToast("Failed to fetch sports");
     }
   };
+  // Handle Delete Game Instances
+  const handleDeleteGame = async (gameId) => {
+  if (!window.confirm("Are you sure you want to delete this game?")) return;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:8000/game-instances/${gameId}`, {
+      method: "DELETE",
+    });
+
+    if (response.ok) {
+      // Remove game from state so it disappears instantly
+      setGames(games.filter(g => g.game_id !== gameId));
+      setToast("Game deleted successfully!");
+    } else {
+      const errorData = await response.json();
+      setToast(`Failed to delete: ${errorData.detail || "Unknown error"}`);
+    }
+  } catch (error) {
+    console.error("Error deleting game:", error);
+    setToast("Error deleting game");
+  }
+};
+  // Handle Editing Game Instances
+  const handleUpdateGame = async (e) => {
+  e.preventDefault();
+  if (!editingGame) return;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:8000/game-instances/${editingGame.game_id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editingGame),
+    });
+
+    if (response.ok) {
+      const updated = await response.json();
+      // update local state
+      setGames(games.map(g => g.game_id === updated.game_id ? updated : g));
+      setToast("Game updated successfully!");
+      setEditingGame(null); // close modal
+    } else {
+      const errorData = await response.json();
+      setToast(`Failed to update: ${errorData.detail || "Unknown error"}`);
+    }
+  } catch (error) {
+    console.error("Error updating game:", error);
+    setToast("Error updating game");
+  }
+};
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -507,7 +559,11 @@ export default function DashboardPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {games.map((game) => (
-                <div key={game.game_id} className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-6 hover:border-neutral-700 transition-colors">
+                <div
+                  key={game.game_id}
+                  className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-6 hover:border-neutral-700 transition-colors flex flex-col h-full"
+                >
+
                   <div className="flex items-start justify-between mb-4">
                     <div>
                       <h3 className="text-lg font-semibold text-white">{getSportName(game.sport_id)}</h3>
@@ -565,16 +621,188 @@ export default function DashboardPage() {
                       </div>
                     )}
                   </div>
+                <div className="mt-auto">
+                  {user && user.user_id === game.host_id ? (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setEditingGame({ ...game })}
+                        className="flex-1 mt-4 py-2 bg-blue-500 hover:bg-blue-400 text-white rounded-lg transition-colors font-medium"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteGame(game.game_id)}
+                        className="flex-1 mt-4 py-2 bg-red-500 hover:bg-red-400 text-white rounded-lg transition-colors font-medium"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      className="w-full mt-4 py-2 bg-violet-500 hover:bg-violet-400 text-white rounded-lg transition-colors font-medium"
+                    >
+                      Join Game
+                    </button>
+                  )}
+                </div>
 
-                  <button className="w-full mt-4 py-2 bg-violet-500 hover:bg-violet-400 text-white rounded-lg transition-colors font-medium">
-                    Join Game
-                  </button>
+
                 </div>
               ))}
             </div>
           )}
         </div>
       </div>
+
+ {/*editing game model*/}     
+{editingGame && (
+  <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 overflow-y-auto">
+    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 max-w-2xl w-full my-8">
+      <h2 className="text-xl font-semibold text-white mb-4">Edit Game</h2>
+      <form onSubmit={handleUpdateGame} className="space-y-4">
+       
+        {/* Sport */}
+        <div>
+          <label className="block text-sm mb-1 text-white">Sport</label>
+          <select
+            value={editingGame.sport_id}
+            onChange={(e) =>
+              setEditingGame({ ...editingGame, sport_id: parseInt(e.target.value) })
+            }
+            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
+          >
+            {sports.map((sport) => (
+              <option key={sport.sport_id} value={sport.sport_id}>
+                {sport.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Start Time */}
+        <div>
+          <label className="block text-sm mb-1 text-white">Start Time</label>
+          <input
+            type="datetime-local"
+            value={editingGame.start_time?.slice(0,16) || ""}
+            onChange={(e) => setEditingGame({ ...editingGame, start_time: e.target.value })}
+            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
+          />
+        </div>
+
+        {/* Duration */}
+        <div>
+          <label className="block text-sm mb-1 text-white">Duration (minutes)</label>
+          <input
+            type="number"
+            value={editingGame.duration_minutes}
+            onChange={(e) =>
+              setEditingGame({ ...editingGame, duration_minutes: parseInt(e.target.value) })
+            }
+            min="15"
+            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
+          />
+        </div>
+
+        {/* Location */}
+        <div>
+          <label className="block text-sm mb-1 text-white">Location</label>
+          <input
+            type="text"
+            value={editingGame.location}
+            onChange={(e) => setEditingGame({ ...editingGame, location: e.target.value })}
+            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
+          />
+        </div>
+
+        {/* Skill Level */}
+        <div>
+          <label className="block text-sm mb-1 text-white">Skill Level</label>
+          <select
+            value={editingGame.skill_level}
+            onChange={(e) =>
+              setEditingGame({ ...editingGame, skill_level: e.target.value })
+            }
+            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
+          >
+            <option value="Beginner">Beginner</option>
+            <option value="Intermediate">Intermediate</option>
+            <option value="Advanced">Advanced</option>
+          </select>
+        </div>
+
+        {/* Max Players */}
+        <div>
+          <label className="block text-sm mb-1 text-white">Max Players</label>
+          <input
+            type="number"
+            value={editingGame.max_players}
+            onChange={(e) => setEditingGame({ ...editingGame, max_players: parseInt(e.target.value) })}
+            min="2"
+            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
+          />
+        </div>
+
+        {/* Cost */}
+        <div>
+          <label className="block text-sm mb-1 text-white">Cost ($)</label>
+          <input
+            type="number"
+            value={editingGame.cost}
+            onChange={(e) => setEditingGame({ ...editingGame, cost: parseFloat(e.target.value) })}
+            min="0"
+            step="0.01"
+            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
+          />
+        </div>
+
+        {/* Status */}
+        <div>
+          <label className="block text-sm mb-1 text-white">Status</label>
+          <select
+            value={editingGame.status}
+            onChange={(e) =>
+              setEditingGame({ ...editingGame, status: e.target.value })
+            }
+            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
+          >
+            <option value="Open">Open</option>
+            <option value="Full">Full</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+        </div>
+
+        {/* Notes */}
+        <div>
+          <label className="block text-sm mb-1 text-white">Notes</label>
+          <textarea
+            value={editingGame.notes || ""}
+            onChange={(e) => setEditingGame({ ...editingGame, notes: e.target.value })}
+            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white resize-none"
+          />
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            className="flex-1 py-2 bg-blue-500 hover:bg-blue-400 text-white rounded-lg font-medium"
+          >
+            Save Changes
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditingGame(null)}
+            className="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
+
+
 
       {/* Toast */}
       {toast && (

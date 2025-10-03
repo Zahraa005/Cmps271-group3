@@ -643,3 +643,33 @@ async def remove_user_from_waitlist(user_id: int, game_id: Union[int, None] = No
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+@app.delete("/game-instances/{game_id}", status_code=200)
+async def delete_game_instance(game_id: int):
+    try:
+        async with Database.pool.acquire() as connection:
+            # First check if the game exists
+            existing = await connection.fetchrow(
+                'SELECT game_id FROM public."Game_instance" WHERE game_id = $1',
+                game_id
+            )
+            
+            if not existing:
+                raise HTTPException(status_code=404, detail="Game instance not found")
+            
+            # Delete the game instance
+            await connection.execute(
+                'DELETE FROM public."Game_instance" WHERE game_id = $1',
+                game_id
+            )
+            
+            return {
+                "message": "Game instance deleted successfully",
+                "game_id": game_id
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
