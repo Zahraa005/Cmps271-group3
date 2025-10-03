@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import ThemeToggle from "../theme/ThemeToggle";
 
 export default function RegistrationPage() {
     const [form, setForm] = useState({
@@ -129,13 +130,13 @@ export default function RegistrationPage() {
                 dy: dir.dy,
                 duration,
                 delay: -(Math.random() * 20), // offset start
-                opacity: 0.12 + Math.random() * 0.18,
+                opacity: 0.50 + Math.random() * 0.50,
             };
         });
     }, []); 
 
     return (
-        <div className="min-h-screen bg-neutral-950 text-white relative overflow-hidden flex flex-col">
+        <div className="min-h-screen bg-[rgb(var(--pc-bg))] text-neutral-900 dark:text-white relative overflow-hidden flex flex-col transition-colors duration-300">
             <style>{`
         @keyframes fly {
           0%   { transform: translate(0, 0); }
@@ -168,12 +169,16 @@ export default function RegistrationPage() {
             </div>
 
             {/* Navbar */}
-            <nav className="relative z-10 bg-neutral-900/80 backdrop-blur px-6 py-4 flex justify-between items-center shadow-lg border-b border-neutral-800">
-                <Link to="/" className="flex items-center gap-2 text-2xl font-bold hover:opacity-80">
-                    <span>PlayConnect</span>
-                    <span>⚽🏀</span>
+            <nav className="relative z-10 bg-white/70 dark:bg-neutral-900/80 backdrop-blur px-6 py-4 flex justify-between items-center shadow-lg border-b border-neutral-200 dark:border-neutral-800 transition-colors duration-300">
+                <Link to="/" className="flex items-center gap-2 text-3xl font-extrabold hover:opacity-80">
+                    <span className="bg-gradient-to-r from-pink-500 to-violet-500 bg-clip-text text-transparent italic">
+                      PlayConnect
+                    </span>
+                    <span className="text-2xl animate-bounce">🏀</span>
+                    <span className="text-2xl animate-bounce [animation-delay:0.3s]">🎾</span>
                 </Link>
                 <div className="flex gap-4">
+                    <ThemeToggle />
                     <a
                         href="/login"
                         className="px-4 py-2 rounded-lg font-semibold shadow transition bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 
@@ -182,14 +187,13 @@ export default function RegistrationPage() {
                         Login
                     </a>
 
-
                     {/* Home button removed */}
                 </div>
             </nav>
 
             {/* Registration Card */}
             <main className="relative z-10 flex-grow flex items-center justify-center px-4">
-                <div className="w-full max-w-md bg-neutral-900/80 rounded-xl shadow-xl p-8 border border-neutral-800">
+                <div className="w-full max-w-md bg-white/80 dark:bg-neutral-900/80 rounded-xl shadow-xl p-8 border border-neutral-200 dark:border-neutral-800 transition-colors duration-300">
                     <h2 className="text-4xl font-semibold text-center mb-2">Start Playing Today</h2>
                     <p className="text-neutral-400 text-center mb-6">
                         Your sports community is just one sign up away!
@@ -204,7 +208,7 @@ export default function RegistrationPage() {
                                 placeholder="First name"
                                 value={form.firstName}
                                 onChange={handleChange}
-                                className="w-1/2 rounded-lg bg-neutral-950/70 border border-neutral-700 px-3 py-2 outline-none focus:ring-2 focus:ring-violet-500"
+                                className="w-1/2 rounded-lg bg-white/70 dark:bg-neutral-950/70 border border-neutral-300 dark:border-neutral-700 px-3 py-2 outline-none focus:ring-2 focus:ring-violet-500 transition-colors"
                                 required
                             />
                             <input
@@ -213,7 +217,7 @@ export default function RegistrationPage() {
                                 placeholder="Last name"
                                 value={form.lastName}
                                 onChange={handleChange}
-                                className="w-1/2 rounded-lg bg-neutral-950/70 border border-neutral-700 px-3 py-2 outline-none focus:ring-2 focus:ring-violet-500"
+                                className="w-1/2 rounded-lg bg-white/70 dark:bg-neutral-950/70 border border-neutral-300 dark:border-neutral-700 px-3 py-2 outline-none focus:ring-2 focus:ring-violet-500 transition-colors"
                                 required
                             />
                         </div>
@@ -225,7 +229,7 @@ export default function RegistrationPage() {
                             placeholder="Email"
                             value={form.email}
                             onChange={handleChange}
-                            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-700 px-3 py-2 outline-none focus:ring-2 focus:ring-violet-500"
+                            className="w-full rounded-lg bg-white/70 dark:bg-neutral-950/70 border border-neutral-300 dark:border-neutral-700 px-3 py-2 outline-none focus:ring-2 focus:ring-violet-500 transition-colors"
                             required
                         />
 
@@ -236,7 +240,7 @@ export default function RegistrationPage() {
                             placeholder="Age"
                             value={form.age}
                             onChange={handleChange}
-                            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-700 px-3 py-2 outline-none focus:ring-2 focus:ring-violet-500"
+                            className="w-full rounded-lg bg-white/70 dark:bg-neutral-950/70 border border-neutral-300 dark:border-neutral-700 px-3 py-2 outline-none focus:ring-2 focus:ring-violet-500 transition-colors"
                             min="0"
                             required
                         />
@@ -249,7 +253,7 @@ export default function RegistrationPage() {
                                 placeholder="Password"
                                 value={form.password}
                                 onChange={handleChange}
-                                className="w-full rounded-lg bg-neutral-950/70 border border-neutral-700 px-3 py-2 pr-14 outline-none focus:ring-2 focus:ring-violet-500"
+                                className="w-full rounded-lg bg-white/70 dark:bg-neutral-950/70 border border-neutral-300 dark:border-neutral-700 px-3 py-2 pr-14 outline-none focus:ring-2 focus:ring-violet-500 transition-colors"
                                 required
                             />
                             <span
@@ -268,10 +272,10 @@ export default function RegistrationPage() {
                                 placeholder="Confirm password"
                                 value={form.confirmPassword}
                                 onChange={handleChange}
-                                className={`w-full rounded-lg bg-neutral-950/70 border px-3 py-2 pr-14 outline-none focus:ring-2 ${submitted && form.password !== form.confirmPassword
+                                className={`w-full rounded-lg bg-white/70 dark:bg-neutral-950/70 border px-3 py-2 pr-14 outline-none focus:ring-2 ${submitted && form.password !== form.confirmPassword
                                     ? "border-rose-500 ring-1 ring-rose-500"
-                                    : "border-neutral-700 focus:ring-violet-500"
-                                    }`}
+                                    : "border-neutral-300 dark:border-neutral-700 focus:ring-violet-500"
+                                    } transition-colors`}
                                 required
                             />
                             <span
@@ -308,7 +312,7 @@ export default function RegistrationPage() {
                 </div>
             </main>
 
-            <footer className="relative z-10 w-full bg-gray-900/80 backdrop-blur text-gray-300 py-6 mt-12 border-t border-neutral-800">
+            <footer className="relative z-10 w-full bg-neutral-100/80 dark:bg-gray-900/80 backdrop-blur text-neutral-700 dark:text-gray-300 py-6 mt-12 border-t border-neutral-200 dark:border-neutral-800 transition-colors duration-300">
                 <div className="w-full flex justify-between items-center px-12">
                     {/* Left side */}
                     <p>&copy; 2025 PlayConnect. All rights reserved.</p>

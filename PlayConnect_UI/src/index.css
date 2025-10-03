@@ -16,6 +16,23 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Theme color variables for background animations */
+:root {
+  --pc-grid: rgba(0,0,0,0.06);
+  --pc-g1: rgba(168,85,247,0.14);   /* violet-ish */
+  --pc-g2: rgba(99,102,241,0.12);   /* indigo-ish */
+  --pc-overlay: 0.06;               /* texture opacity */
+  --pc-bg: 255 255 255;             /* rgb triplet for Tailwind bg */
+}
+
+.dark {
+  --pc-grid: rgba(168,85,247,0.06);
+  --pc-g1: rgba(168,85,247,0.25);
+  --pc-g2: rgba(139,92,246,0.18);
+  --pc-overlay: 0.10;
+  --pc-bg: 10 10 10;
+}
+
 a {
   font-weight: 500;
   color: #646cff;
