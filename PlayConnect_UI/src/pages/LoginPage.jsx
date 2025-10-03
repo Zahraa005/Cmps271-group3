@@ -120,24 +120,31 @@ export default function LoginPage() {
       {/* Navigation */}
       <div className="px-4 py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-2xl font-bold text-white">
-            <a href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">              
-              <span>PlayConnect</span>
-              <span>🏀🎾</span>
+          <div className="flex items-center gap-2">
+            <a href="/" className="flex items-center gap-2">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-fuchsia-400 to-indigo-400 font-extrabold text-3xl sm:text-4xl tracking-wide animate-pulse italic">
+                PlayConnect
+              </span>
+              <span className="animate-bounce ml-1">🏀🎾</span>
             </a>
           </div>
-          <a 
-            href="/" 
-            className="text-sm text-neutral-400 hover:text-white transition-colors"
+          <a
+            href="/"
+            className="text-neutral-400 hover:text-neutral-200 transition-colors focus:outline-none"
           >
-             Back to Home
+            <span>Back to Home</span>
+            <svg className="h-5 w-5 translate-x-0 transition-transform duration-200 group-hover:translate-x-1" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+              <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L13.586 11H4a1 1 0 110-2h9.586l-3.293-3.293a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
           </a>
         </div>
       </div>
 
       <div className="mx-auto max-w-md px-4 py-8">
         <header className="mb-8 text-center">
-          <h1 className="text-3xl font-semibold tracking-tight text-white">Welcome back</h1>
+          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-fuchsia-400 to-indigo-400 animate-pulse">
+            Welcome back
+          </h1>
           <p className="mt-2 text-sm text-neutral-400">Sign in to your PlayConnect account</p>
         </header>
 
@@ -149,10 +156,8 @@ export default function LoginPage() {
               <input
                 type="email"
                 className={classNames(
-                  "w-full rounded-lg bg-neutral-950/70 border px-3 py-3 outline-none shadow-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-colors",
-                  emailOk || !email
-                    ? "border-neutral-800"
-                    : "border-rose-500"
+                  "w-full rounded-xl bg-neutral-900/60 border px-4 py-3 text-white placeholder-neutral-500 outline-none shadow-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-all duration-300 hover:border-violet-400",
+                  emailOk || !email ? "border-neutral-700" : "border-rose-500"
                 )}
                 placeholder="Enter your email"
                 value={email}
@@ -179,10 +184,8 @@ export default function LoginPage() {
               <input
                 type={showPassword ? "text" : "password"}
                 className={classNames(
-                  "w-full rounded-lg bg-neutral-950/70 border px-3 py-3 pr-12 outline-none shadow-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-colors",
-                  passwordOk || !password
-                    ? "border-neutral-800"
-                    : "border-rose-500"
+                  "w-full rounded-xl bg-neutral-900/60 border px-4 py-3 text-white placeholder-neutral-500 outline-none shadow-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-all duration-300 hover:border-violet-400",
+                  passwordOk || !password ? "border-neutral-700" : "border-rose-500"
                 )}
                 placeholder="Enter your password"
                 value={password}
@@ -198,9 +201,10 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={togglePasswordVisibility}
-                  className="text-neutral-400 hover:text-neutral-200 transition-colors focus:outline-none"
+                  className="flex items-center justify-center h-9 w-9 rounded-full bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 hover:from-violet-500/30 hover:to-fuchsia-500/30 text-violet-400 hover:text-fuchsia-300 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-1 focus:ring-offset-neutral-900 disabled:opacity-50"
                   disabled={loading}
                 >
+                  <span className="text-lg">⃠</span>
                   {showPassword ? (
                     <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                       <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
@@ -222,23 +226,23 @@ export default function LoginPage() {
 
           {/* Remember me and Forgot password */}
           <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className="flex items-center gap-3 cursor-pointer select-none group">
               <input
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                className="rounded border-neutral-600 bg-neutral-800 text-violet-500 focus:ring-violet-500 focus:ring-offset-0"
+                className="h-5 w-5 rounded-md border border-neutral-600 bg-neutral-900/60 accent-violet-500 shadow-inner transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:ring-offset-0 focus:ring-offset-neutral-900 disabled:opacity-50"
                 disabled={loading}
               />
-              <span className="text-sm text-neutral-300">Remember me</span>
+              <span className="text-sm font-medium text-neutral-300 group-hover:text-white tracking-wide">Remember me</span>
             </label>
             <button
               type="button"
               onClick={handleForgotPassword}
-              className="text-sm text-violet-400 hover:text-violet-300 transition-colors"
+              className="flex items-center gap-1 text-sm text-violet-400 hover:text-violet-300 transition-colors font-medium"
               disabled={loading}
             >
-              Forgot password?
+              <span>Forgot password?</span>
             </button>
           </div>
 
@@ -249,8 +253,8 @@ export default function LoginPage() {
             className={classNames(
               "w-full rounded-xl py-3 font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-950",
               canSubmit
-                ? "bg-violet-500 text-white hover:bg-violet-400 active:scale-[0.99] shadow-lg shadow-violet-500/30"
-                : "bg-neutral-800/80 text-neutral-500 cursor-not-allowed"
+                ? "bg-violet-500 text-white font-semibold hover:bg-violet-400 active:scale-[0.99] shadow-lg shadow-violet-500/30"
+                : "bg-neutral-800/80 text-white/40 cursor-not-allowed"
             )}
           >
             {loading ? (
