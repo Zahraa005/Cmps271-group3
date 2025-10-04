@@ -445,6 +445,126 @@ async def get_game_instance(game_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# -------------------------------
+# Game participants (follow team style)
+# -------------------------------
+@app.get("/game-instances/{game_id}/participants")
+async def api_get_game_participants(game_id: int):
+    """
+    Return participants for a given game instance.
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            rows = await connection.fetch(
+                '''
+                SELECT 
+                    gp.participant_id,
+                    gp.game_id,
+                    gp.user_id,
+                    gp.joined_at,
+                    u.first_name,
+                    u.last_name,
+                    u.email
+                FROM public."Game_participants" AS gp
+                JOIN public."Users" AS u ON u.user_id = gp.user_id
+                WHERE gp.game_id = $1
+                ORDER BY gp.joined_at ASC
+                ''',
+                game_id,
+            )
+            data = [dict(r) for r in rows]
+            # normalize a handy display name
+            for row in data:
+                fn = row.get("first_name") or ""
+                ln = row.get("last_name") or ""
+                row["name"] = (fn + " " + ln).strip() or row.get("email")
+            return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------------------
+# Waitlist scoped by game instance
+# -------------------------------
+class WaitlistUserBody(BaseModel):
+    user_id: int
+
+@app.get("/game-instances/{game_id}/waitlist")
+async def api_get_game_waitlist(game_id: int):
+    """
+    Return waitlist entries for a single game instance, ordered by joined_at.
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            rows = await connection.fetch(
+                '''
+                SELECT game_id, user_id, joined_at, admitted
+                FROM public."Waitlist"
+                WHERE game_id = $1
+                ORDER BY joined_at ASC
+                ''',
+                game_id,
+            )
+            return [dict(r) for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/game-instances/{game_id}/waitlist", status_code=201)
+async def api_join_game_waitlist(game_id: int, body: WaitlistUserBody):
+    """
+    Add a user to the waitlist for a game (idempotent).
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            # ensure game exists
+            exists = await connection.fetchrow(
+                'SELECT game_id FROM public."Game_instance" WHERE game_id = $1 LIMIT 1',
+                game_id,
+            )
+            if not exists:
+                raise HTTPException(status_code=404, detail="Game not found")
+
+            result = await connection.execute(
+                '''
+                INSERT INTO public."Waitlist" (game_id, user_id, joined_at, admitted)
+                VALUES ($1, $2, NOW(), FALSE)
+                ON CONFLICT (game_id, user_id) DO NOTHING
+                ''',
+                game_id,
+                body.user_id,
+            )
+            inserted = result and result.startswith("INSERT")
+            return {
+                "message": "Joined waitlist" if inserted else "Already on waitlist",
+                "game_id": game_id,
+                "user_id": body.user_id,
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/game-instances/{game_id}/waitlist/{user_id}", status_code=200)
+async def api_leave_game_waitlist(game_id: int, user_id: int):
+    """
+    Remove user from a game's waitlist.
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            result = await connection.execute(
+                'DELETE FROM public."Waitlist" WHERE game_id = $1 AND user_id = $2',
+                game_id,
+                user_id,
+            )
+            deleted = result.split(" ")[-1]
+            if deleted == "0":
+                raise HTTPException(status_code=404, detail="Waitlist entry not found")
+            return {"message": "Left waitlist", "game_id": game_id, "user_id": user_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.post("/login", response_model=TokenResponse)

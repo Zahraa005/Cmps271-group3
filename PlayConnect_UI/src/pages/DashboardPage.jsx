@@ -15,6 +15,11 @@ export default function DashboardPage() {
   // Edit state
   const [editingGame, setEditingGame] = useState(null); // holds the game being edited
 
+  // Waitlist state
+  const [waitlists, setWaitlists] = useState({});           // { [gameId]: [{user_id, name, joined_at}, ...] }
+  const [waitlistLoading, setWaitlistLoading] = useState({});// { [gameId]: boolean }
+  const [waitlistError, setWaitlistError] = useState({});    // { [gameId]: string }
+
   
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
@@ -102,6 +107,52 @@ export default function DashboardPage() {
       setToast("Failed to fetch sports");
     }
   };
+
+  // ===== Waitlist helpers =====
+  const API_BASE = import.meta.env?.VITE_API_URL || "http://127.0.0.1:8000";
+
+  async function fetchWaitlist(gameId) {
+    try {
+      setWaitlistLoading(prev => ({ ...prev, [gameId]: true }));
+      setWaitlistError(prev => ({ ...prev, [gameId]: "" }));
+      const res = await fetch(`${API_BASE}/game-instances/${gameId}/waitlist`);
+      if (!res.ok) throw new Error(`Failed to fetch waitlist (${res.status})`);
+      const data = await res.json();
+      setWaitlists(prev => ({ ...prev, [gameId]: Array.isArray(data) ? data : [] }));
+    } catch (e) {
+      setWaitlistError(prev => ({ ...prev, [gameId]: e.message || "Failed to load waitlist" }));
+    } finally {
+      setWaitlistLoading(prev => ({ ...prev, [gameId]: false }));
+    }
+  }
+
+  async function joinWaitlist(gameId, userId) {
+    try {
+      const res = await fetch(`${API_BASE}/game-instances/${gameId}/waitlist`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      if (!res.ok) throw new Error(`Join failed (${res.status})`);
+      await fetchWaitlist(gameId);
+      setToast("Joined queue");
+    } catch (e) {
+      setToast(e.message || "Failed to join queue");
+    }
+  }
+
+  async function leaveWaitlist(gameId, userId) {
+    try {
+      const res = await fetch(`${API_BASE}/game-instances/${gameId}/waitlist/${userId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error(`Leave failed (${res.status})`);
+      await fetchWaitlist(gameId);
+      setToast("Left queue");
+    } catch (e) {
+      setToast(e.message || "Failed to leave queue");
+    }
+  }
   // Handle Delete Game Instances
   const handleDeleteGame = async (gameId) => {
   if (!window.confirm("Are you sure you want to delete this game?")) return;
@@ -559,6 +610,8 @@ export default function DashboardPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {games.map((game) => (
+                <>
+                {game.status === "Full" && !waitlists[game.game_id] && !waitlistLoading[game.game_id] && fetchWaitlist(game.game_id)}
                 <div
                   key={game.game_id}
                   className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-6 hover:border-neutral-700 transition-colors flex flex-col h-full"
@@ -638,16 +691,77 @@ export default function DashboardPage() {
                       </button>
                     </div>
                   ) : (
-                    <button
-                      className="w-full mt-4 py-2 bg-violet-500 hover:bg-violet-400 text-white rounded-lg transition-colors font-medium"
-                    >
-                      Join Game
-                    </button>
+                    game.status === "Full" ? (
+                      <div className="w-full mt-4 p-3 rounded-lg border border-yellow-500/40 bg-yellow-500/10">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-yellow-300">Game is full — Queue</span>
+                          <button
+                            onClick={() => fetchWaitlist(game.game_id)}
+                            className="text-xs px-2 py-1 rounded border border-yellow-500/40 hover:bg-yellow-500/20"
+                          >
+                            Refresh
+                          </button>
+                        </div>
+
+                        {waitlistLoading[game.game_id] ? (
+                          <p className="text-xs text-neutral-300">Loading queue…</p>
+                        ) : waitlistError[game.game_id] ? (
+                          <p className="text-xs text-red-400">{waitlistError[game.game_id]}</p>
+                        ) : (waitlists[game.game_id]?.length ?? 0) === 0 ? (
+                          <p className="text-xs text-neutral-300">No one waiting yet.</p>
+                        ) : (
+                          <ol className="list-decimal pl-5 space-y-1 text-sm text-neutral-200">
+                            {waitlists[game.game_id].map((u, idx) => (
+                              <li key={String(u.user_id ?? u.id)}>
+                                {(u.name ?? u.full_name ?? `User ${u.user_id ?? u.id}`)} — position <b>{idx + 1}</b>
+                              </li>
+                            ))}
+                          </ol>
+                        )}
+
+                        <div className="mt-3 flex gap-2">
+                          {user ? (
+                            (() => {
+                              const list = waitlists[game.game_id] || [];
+                              const meIdx = list.findIndex(i => String(i.user_id ?? i.id) === String(user.user_id));
+                              const inQueue = meIdx >= 0;
+                              return inQueue ? (
+                                <>
+                                  <span className="text-xs text-neutral-200">Your position: <b>{meIdx + 1}</b></span>
+                                  <button
+                                    onClick={() => leaveWaitlist(game.game_id, user.user_id)}
+                                    className="ml-auto px-3 py-1 text-sm rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white"
+                                  >
+                                    Leave queue
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() => joinWaitlist(game.game_id, user.user_id)}
+                                  className="ml-auto px-3 py-1 text-sm rounded bg-violet-500 hover:bg-violet-400 text-white"
+                                >
+                                  Join queue
+                                </button>
+                              );
+                            })()
+                          ) : (
+                            <span className="text-xs text-neutral-400">Login to join the queue</span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        className="w-full mt-4 py-2 bg-violet-500 hover:bg-violet-400 text-white rounded-lg transition-colors font-medium"
+                      >
+                        Join Game
+                      </button>
+                    )
                   )}
                 </div>
 
 
                 </div>
+                </>
               ))}
             </div>
           )}
