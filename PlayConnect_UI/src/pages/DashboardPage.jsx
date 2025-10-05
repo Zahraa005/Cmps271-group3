@@ -19,6 +19,11 @@ export default function DashboardPage() {
   const [waitlists, setWaitlists] = useState({});           // { [gameId]: [{user_id, name, joined_at}, ...] }
   const [waitlistLoading, setWaitlistLoading] = useState({});// { [gameId]: boolean }
   const [waitlistError, setWaitlistError] = useState({});    // { [gameId]: string }
+  // Participants state
+  const [participantsCounts, setParticipantsCounts] = useState({}); // { [gameId]: number }
+  const [joiningGameId, setJoiningGameId] = useState(null);
+  const [leavingGameId, setLeavingGameId] = useState(null);
+  const [iAmInGame, setIAmInGame] = useState({}); // { [gameId]: boolean }
 
   
   const { user, isAuthenticated, logout } = useAuth();
@@ -81,6 +86,8 @@ export default function DashboardPage() {
       if (response.ok) {
         const data = await response.json();
         setGames(data);
+        // After games load, fetch participant info for each
+        fetchAllParticipantsInfo(data);
       } else {
         setToast("Failed to fetch games");
       }
@@ -110,6 +117,97 @@ export default function DashboardPage() {
 
   // ===== Waitlist helpers =====
   const API_BASE = import.meta.env?.VITE_API_URL || "http://127.0.0.1:8000";
+
+  // ===== Participants helpers =====
+  async function fetchParticipantsInfo(gameId) {
+    try {
+      const res = await fetch(`${API_BASE}/game-participants?game_id=${encodeURIComponent(gameId)}`);
+      if (!res.ok) throw new Error(`Failed to fetch participants (${res.status})`);
+      const list = await res.json();
+      const count = Array.isArray(list) ? list.length : 0;
+      setParticipantsCounts(prev => ({ ...prev, [gameId]: count }));
+      setIAmInGame(prev => ({ ...prev, [gameId]: Array.isArray(list) && user ? list.some(p => String(p.user_id) === String(user.user_id)) : false }));
+    } catch (e) {
+      // Keep silent but log
+      console.error(e);
+      setParticipantsCounts(prev => ({ ...prev, [gameId]: prev[gameId] ?? 0 }));
+      setIAmInGame(prev => ({ ...prev, [gameId]: prev[gameId] ?? false }));
+    }
+  }
+
+  async function fetchAllParticipantsInfo(gamesList) {
+    const ids = (gamesList || games).map(g => g.game_id);
+    await Promise.all(ids.map(id => fetchParticipantsInfo(id)));
+  }
+
+  async function joinGame(gameId) {
+    if (!user) {
+      setToast("Please login to join");
+      return;
+    }
+    try {
+      setJoiningGameId(gameId);
+      const res = await fetch(`${API_BASE}/game-participants/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ game_id: gameId, user_id: user.user_id, role: "PLAYER" })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Join failed (${res.status})`);
+      }
+      const payload = await res.json();
+      setToast(payload?.message || "Joined game");
+      // Refresh participant info for this game
+      await fetchParticipantsInfo(gameId);
+      // Optionally update game status to Full if count >= max_players
+      setGames(prev => prev.map(g => {
+        if (g.game_id !== gameId) return g;
+        const newCount = (participantsCounts[gameId] ?? 0) + 1; // optimistic
+        return { ...g, status: newCount >= g.max_players ? "Full" : g.status };
+      }));
+    } catch (e) {
+      setToast(e.message || "Failed to join game");
+    } finally {
+      setJoiningGameId(null);
+    }
+  }
+
+  async function leaveGame(gameId) {
+    if (!user) {
+      setToast("Please login to leave");
+      return;
+    }
+    if (!window.confirm("Are you sure you want to leave ?")) {
+      return;
+    }
+    try {
+      setLeavingGameId(gameId);
+      const res = await fetch(`${API_BASE}/game-participants/leave`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ game_id: gameId, user_id: user.user_id })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Leave failed (${res.status})`);
+      }
+      const payload = await res.json();
+      setToast(payload?.message || "Left game");
+      // Refresh participant info for this game
+      await fetchParticipantsInfo(gameId);
+      // Optionally update game status away from Full if capacity available
+      setGames(prev => prev.map(g => {
+        if (g.game_id !== gameId) return g;
+        const newCount = Math.max((participantsCounts[gameId] ?? 1) - 1, 0); // optimistic
+        return { ...g, status: newCount >= g.max_players ? "Full" : (g.status === "Full" ? "Open" : g.status) };
+      }));
+    } catch (e) {
+      setToast(e.message || "Failed to leave game");
+    } finally {
+      setLeavingGameId(null);
+    }
+  }
 
   async function fetchWaitlist(gameId) {
     try {
@@ -650,6 +748,21 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-4-4h-3m-4 6H7v-2a4 4 0 014-4h0m6-8a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        <span>
+                          {(participantsCounts[game.game_id] ?? 0)} / {game.max_players} joined
+                        </span>
+                        <button
+                          onClick={() => fetchParticipantsInfo(game.game_id)}
+                          className="ml-2 text-xs px-2 py-0.5 rounded border border-neutral-700 hover:bg-neutral-800"
+                          title="Refresh participants"
+                        >
+                          ↻
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         <span>{game.duration_minutes} min</span>
@@ -750,11 +863,33 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     ) : (
-                      <button
-                        className="w-full mt-4 py-2 bg-violet-500 hover:bg-violet-400 text-white rounded-lg transition-colors font-medium"
-                      >
-                        Join Game
-                      </button>
+                      iAmInGame[game.game_id] ? (
+                        <button
+                          onClick={() => leaveGame(game.game_id)}
+                          disabled={leavingGameId === game.game_id}
+                          className={classNames(
+                            "w-full mt-4 py-2 text-white rounded-lg transition-colors font-medium",
+                            leavingGameId === game.game_id
+                              ? "bg-neutral-800 cursor-not-allowed"
+                              : "bg-red-500 hover:bg-red-400"
+                          )}
+                        >
+                          {leavingGameId === game.game_id ? "Leaving..." : "Leave Game"}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => joinGame(game.game_id)}
+                          disabled={joiningGameId === game.game_id}
+                          className={classNames(
+                            "w-full mt-4 py-2 text-white rounded-lg transition-colors font-medium",
+                            joiningGameId === game.game_id
+                              ? "bg-neutral-800 cursor-not-allowed"
+                              : "bg-violet-500 hover:bg-violet-400"
+                          )}
+                        >
+                          {joiningGameId === game.game_id ? "Joining..." : "Join Game"}
+                        </button>
+                      )
                     )
                   )}
                 </div>

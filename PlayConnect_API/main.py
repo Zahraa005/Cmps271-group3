@@ -136,6 +136,107 @@ async def register_user(reg: RegisterRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/game-participants")
+async def get_game_participants(game_id: Union[int, None] = None, user_id: Union[int, None] = None):
+    """
+    List game participants with optional filters by game_id and/or user_id.
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            query = 'SELECT game_id, user_id, role, joined_at FROM public."Game_participants"'
+            conditions = []
+            params = []
+
+            if game_id is not None:
+                conditions.append(f"game_id = ${len(params) + 1}")
+                params.append(game_id)
+
+            if user_id is not None:
+                conditions.append(f"user_id = ${len(params) + 1}")
+                params.append(user_id)
+
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+
+            query += " ORDER BY joined_at ASC"
+
+            rows = await connection.fetch(query, *params)
+            return [dict(row) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/game-participants/join", status_code=201)
+async def join_game_participant(payload: GameParticipantJoin):
+    """
+    Add a participant to a game (idempotent on game_id, user_id).
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            # Ensure game exists
+            game = await connection.fetchrow(
+                'SELECT game_id FROM public."Game_instance" WHERE game_id = $1 LIMIT 1',
+                payload.game_id,
+            )
+            if not game:
+                raise HTTPException(status_code=404, detail="Game not found")
+
+            # Ensure user exists
+            user = await connection.fetchrow(
+                'SELECT user_id FROM public."Users" WHERE user_id = $1 LIMIT 1',
+                payload.user_id,
+            )
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            result = await connection.execute(
+                '''
+                INSERT INTO public."Game_participants" (game_id, user_id, role, joined_at)
+                VALUES ($1, $2, $3, NOW())
+                ON CONFLICT (game_id, user_id) DO NOTHING
+                ''',
+                payload.game_id,
+                payload.user_id,
+                payload.role,
+            )
+            inserted = result and result.startswith("INSERT")
+            return {
+                "message": "Joined game" if inserted else "Already participating",
+                "game_id": payload.game_id,
+                "user_id": payload.user_id,
+                "role": payload.role,
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/game-participants/leave", status_code=200)
+async def leave_game_participant(payload: GameParticipantLeave):
+    """
+    Remove a participant from a game.
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            result = await connection.execute(
+                'DELETE FROM public."Game_participants" WHERE game_id = $1 AND user_id = $2',
+                payload.game_id,
+                payload.user_id,
+            )
+            deleted = result.split(" ")[-1]
+            if deleted == "0":
+                raise HTTPException(status_code=404, detail="Participant not found for game")
+            return {
+                "message": "Left game",
+                "game_id": payload.game_id,
+                "user_id": payload.user_id,
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/forgot-password", status_code=202)
 async def forgot_password(payload: ForgotPasswordRequestCreate):

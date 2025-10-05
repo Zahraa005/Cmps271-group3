@@ -1,9 +1,22 @@
 import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function HomePage() {
   const videoRef = useRef(null);
   const [revealBall, setRevealBall] = useState(false);
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+
+  const goToGames = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (isAuthenticated) {
+      navigate("/dashboard");
+    } else {
+      navigate("/login");
+    }
+  };
 
   useEffect(() => {
     const vid = videoRef.current;
@@ -35,7 +48,7 @@ export default function HomePage() {
         <div className="hidden md:flex gap-6 text-lg">
           <a href="/" className="hover:text-indigo-400 transition-colors duration-300">Home</a>
           <a href="/coaches" className="hover:text-indigo-400 transition-colors duration-300">Coaches</a>
-          <a href="/games" className="hover:text-indigo-400 transition-colors duration-300">Games</a>
+          <a href="/games" onClick={goToGames} className="hover:text-indigo-400 transition-colors duration-300">Games</a>
           <a href="/community" className="hover:text-indigo-400 transition-colors duration-300">Community</a>
         </div>
         <div className="flex gap-4">
@@ -81,7 +94,7 @@ export default function HomePage() {
           </h1>
           <p className="text-2xl mb-8 text-gray-100 font-light drop-shadow-lg">Connect. Play. Compete.</p>
           <div className="flex gap-4">
-            <a href="/games" className="px-8 py-4 bg-transparent border-2 border-white text-white rounded-lg font-semibold text-lg hover:bg-white/10 hover:-translate-y-1 transition-all duration-300">
+            <a href="/games" onClick={goToGames} className="px-8 py-4 bg-transparent border-2 border-white text-white rounded-lg font-semibold text-lg hover:bg-white/10 hover:-translate-y-1 transition-all duration-300">
               Find Your Game
             </a>
             <a href="/signup" className="px-8 py-4 bg-transparent border-2 border-white text-white rounded-lg font-semibold text-lg hover:bg-white/10 hover:-translate-y-1 transition-all duration-300">
