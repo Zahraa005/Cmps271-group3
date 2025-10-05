@@ -25,10 +25,10 @@ export default function DashboardPage() {
   const [leavingGameId, setLeavingGameId] = useState(null);
   const [iAmInGame, setIAmInGame] = useState({}); // { [gameId]: boolean }
 
-  
+
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
-  
+
   // Form state for creating new games
   const [formData, setFormData] = useState({
     host_id: 0, // Will be set from authenticated user
@@ -253,63 +253,63 @@ export default function DashboardPage() {
   }
   // Handle Delete Game Instances
   const handleDeleteGame = async (gameId) => {
-  if (!window.confirm("Are you sure you want to delete this game?")) return;
+    if (!window.confirm("Are you sure you want to delete this game?")) return;
 
-  try {
-    const response = await fetch(`http://127.0.0.1:8000/game-instances/${gameId}`, {
-      method: "DELETE",
-    });
+    try {
+      const response = await fetch(`http://127.0.0.1:8000/game-instances/${gameId}`, {
+        method: "DELETE",
+      });
 
-    if (response.ok) {
-      // Remove game from state so it disappears instantly
-      setGames(games.filter(g => g.game_id !== gameId));
-      setToast("Game deleted successfully!");
-    } else {
-      const errorData = await response.json();
-      setToast(`Failed to delete: ${errorData.detail || "Unknown error"}`);
+      if (response.ok) {
+        // Remove game from state so it disappears instantly
+        setGames(games.filter(g => g.game_id !== gameId));
+        setToast("Game deleted successfully!");
+      } else {
+        const errorData = await response.json();
+        setToast(`Failed to delete: ${errorData.detail || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Error deleting game:", error);
+      setToast("Error deleting game");
     }
-  } catch (error) {
-    console.error("Error deleting game:", error);
-    setToast("Error deleting game");
-  }
-};
+  };
   // Handle Editing Game Instances
   const handleUpdateGame = async (e) => {
-  e.preventDefault();
-  if (!editingGame) return;
+    e.preventDefault();
+    if (!editingGame) return;
 
-  try {
-    const response = await fetch(`http://127.0.0.1:8000/game-instances/${editingGame.game_id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editingGame),
-    });
+    try {
+      const response = await fetch(`http://127.0.0.1:8000/game-instances/${editingGame.game_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editingGame),
+      });
 
-    if (response.ok) {
-      const updated = await response.json();
-      // update local state
-      setGames(games.map(g => g.game_id === updated.game_id ? updated : g));
-      setToast("Game updated successfully!");
-      setEditingGame(null); // close modal
-    } else {
-      const errorData = await response.json();
-      setToast(`Failed to update: ${errorData.detail || "Unknown error"}`);
+      if (response.ok) {
+        const updated = await response.json();
+        // update local state
+        setGames(games.map(g => g.game_id === updated.game_id ? updated : g));
+        setToast("Game updated successfully!");
+        setEditingGame(null); // close modal
+      } else {
+        const errorData = await response.json();
+        setToast(`Failed to update: ${errorData.detail || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Error updating game:", error);
+      setToast("Error updating game");
     }
-  } catch (error) {
-    console.error("Error updating game:", error);
-    setToast("Error updating game");
-  }
-};
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'sport_id' || name === 'duration_minutes' || name === 'max_players' || name === 'cost' || name === 'host_id' 
-        ? parseInt(value) || 0 
+      [name]: name === 'sport_id' || name === 'duration_minutes' || name === 'max_players' || name === 'cost' || name === 'host_id'
+        ? parseInt(value) || 0
         : value
     }));
-    
+
     // Clear error when user starts typing
     if (formErrors[name]) {
       setFormErrors(prev => ({ ...prev, [name]: null }));
@@ -318,13 +318,13 @@ export default function DashboardPage() {
 
   const validateForm = () => {
     const errors = {};
-    
+
     if (!formData.start_time) errors.start_time = "Start time is required";
     if (!formData.location.trim()) errors.location = "Location is required";
     if (formData.duration_minutes < 15) errors.duration_minutes = "Duration must be at least 15 minutes";
     if (formData.max_players < 2) errors.max_players = "Must allow at least 2 players";
     if (formData.cost < 0) errors.cost = "Cost cannot be negative";
-    
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -436,7 +436,7 @@ export default function DashboardPage() {
           backgroundPosition: "0 0, 0 0",
         }}
       />
-    
+
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 mix-blend-screen"
@@ -445,7 +445,7 @@ export default function DashboardPage() {
             "radial-gradient(600px 300px at 20% 0%, rgba(167,139,250,0.18), transparent 60%), radial-gradient(600px 300px at 80% 100%, rgba(244,114,182,0.14), transparent 55%)",
         }}
       />
-      
+
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-5 mix-blend-overlay"
@@ -457,44 +457,117 @@ export default function DashboardPage() {
       />
 
       {/* Navigation */}
-      <div className="px-4 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-2xl font-bold text-white">
-            <a href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
-              <span>PlayConnect</span>
-              <span>🏀🎾</span>
-            </a>
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setShowCreateForm(!showCreateForm)}
-              className="px-4 py-2 bg-violet-500 hover:bg-violet-400 text-white rounded-lg transition-colors"
-            >
-              {showCreateForm ? "Cancel" : "Create Game"}
-            </button>
-            <button
-              onClick={logout}
-              className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition-colors"
-            >
-              Logout
-            </button>
-            <a 
-              href="/" 
-              className="text-sm text-neutral-400 hover:text-white transition-colors"
-            >
-              Back to Home
-            </a>
+      {/* Dashboard Header */}
+      <>
+        {/* Background patterns */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-20"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
+          }}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 mix-blend-screen"
+          style={{
+            backgroundImage:
+              "radial-gradient(600px 300px at 20% 0%, rgba(167,139,250,0.18), transparent 60%), radial-gradient(600px 300px at 80% 100%, rgba(244,114,182,0.14), transparent 55%)",
+          }}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-5 mix-blend-overlay"
+          style={{
+            backgroundImage:
+              "url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nNScgaGVpZ2h0PSc1JyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnPjxmaWx0ZXIgaWQ9J2EnPjxmZVR1cmJ1bGVuY2UgdHlwZT0ncGVybGluJyBiYXNlRnJlcXVlbmN5PScwLjcnIG51bU9jdGF2ZXM9JzInLz48L2ZpbHRlcj48cmVjdCB3aWR0aD0nNTAnIGhlaWdodD0nNTAnIGZpbHRlcj0ndXJsKCNhKScgZmlsbD0nI2ZmZicvPjwvc3ZnPg==')",
+            backgroundSize: "150px 150px",
+          }}
+        />
+
+        {/* Navigation */}
+        <div className="px-4 py-4 relative z-10">
+          <div className="flex items-center justify-between">
+            {/* Logo */}
+            <div className="flex items-center gap-2 text-2xl font-bold text-white">
+              <a href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
+                <span>PlayConnect</span>
+                <span>🏀🎾</span>
+              </a>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex items-center gap-4">
+              <a
+                href="/"
+                className="text-sm text-neutral-400 hover:text-white transition-colors"
+              >
+                &larr; Back to Home
+              </a>
+
+              <button
+                onClick={() => setShowCreateForm(!showCreateForm)}
+                className="px-4 py-2 bg-violet-500 hover:bg-violet-400 text-white rounded-lg transition-colors"
+              >
+                {showCreateForm ? "Cancel" : "Create Game"}
+              </button>
+
+              <button
+                onClick={logout}
+                className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition-colors"
+              >
+                Logout
+              </button>
+
+              {/* Profile Circle */}
+              <div
+                title={user?.first_name ? `${user.first_name} ${user.last_name || ""}` : user?.email}
+                className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center text-white font-semibold text-sm hover:bg-neutral-700 cursor-default"
+              >
+                {user
+                  ? user.first_name
+                    ? user.first_name.charAt(0).toUpperCase()
+                    : user.email?.charAt(0).toUpperCase()
+                  : "👤"}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      </>
+
 
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <header className="mb-8 text-center">
-          <h1 className="text-4xl font-semibold tracking-tight text-white mb-2">Game Dashboard</h1>
-          <p className="text-neutral-400">Discover and join upcoming games in your area</p>
+        <header className="text-center mb-10">
+          <h2 className="text-3xl font-semibold text-white mb-2">
+            Game Dashboard
+          </h2>
+          <p className="text-neutral-400 text-sm">
+            Discover and join upcoming games in your area
+          </p>
           {user && (
-            <p className="text-sm text-violet-400 mt-2">Welcome back, {user.first_name ? `${user.first_name} ${user.last_name ?? ''}`.trim() : user.email}!</p>
+            <p className="text-4xl text-violet-400 mt-1">
+              Welcome back,{" "}
+              {user.first_name
+                ? `${user.first_name} ${user.last_name ?? ""}`.trim()
+                : user.email}
+              !
+            </p>
           )}
+
+          {/* Decorative refresh line */}
+          <div className="mt-5 flex items-center justify-center">
+            <div className="flex-grow max-w-xs h-[1px] bg-gradient-to-r from-transparent via-neutral-700 to-transparent"></div>
+            <button
+              onClick={fetchGames}
+              disabled={loading}
+              className="mx-3 px-4 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-md text-sm disabled:opacity-50 transition"
+            >
+              {loading ? "Refreshing..." : "Refresh"}
+            </button>
+            <div className="flex-grow max-w-xs h-[1px] bg-gradient-to-r from-transparent via-neutral-700 to-transparent"></div>
+          </div>
         </header>
 
         {/* Create Game Form */}
@@ -658,8 +731,8 @@ export default function DashboardPage() {
                   {formLoading ? (
                     <div className="flex items-center justify-center gap-2">
                       <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                       </svg>
                       Creating Game...
                     </div>
@@ -674,23 +747,14 @@ export default function DashboardPage() {
 
         {/* Games List */}
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-semibold text-white">Upcoming Games</h2>
-            <button
-              onClick={fetchGames}
-              disabled={loading}
-              className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition-colors disabled:opacity-50"
-            >
-              {loading ? "Refreshing..." : "Refresh"}
-            </button>
-          </div>
+
 
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="flex items-center gap-2 text-neutral-400">
                 <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                 </svg>
                 Loading games...
               </div>
@@ -706,351 +770,435 @@ export default function DashboardPage() {
               <p className="text-neutral-400">Be the first to create a game!</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6">
               {games.map((game) => (
                 <>
-                {game.status === "Full" && !waitlists[game.game_id] && !waitlistLoading[game.game_id] && fetchWaitlist(game.game_id)}
-                <div
-                  key={game.game_id}
-                  className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-6 hover:border-neutral-700 transition-colors flex flex-col h-full"
-                >
+                  {game.status === "Full" && !waitlists[game.game_id] && !waitlistLoading[game.game_id] && fetchWaitlist(game.game_id)}
+                  <div
+                    key={game.game_id}
 
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-white">{getSportName(game.sport_id)}</h3>
-                      <p className="text-sm text-neutral-400">{formatDateTime(game.start_time)}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className={classNames(
-                        "px-2 py-1 rounded-full text-xs font-medium border",
-                        getStatusColor(game.status)
-                      )}>
-                        {game.status}
-                      </span>
-                    </div>
-                  </div>
+                    className="break-inside-avoid bg-neutral-900/50 border border-neutral-800 rounded-xl p-6 hover:border-neutral-700 transition-colors flex flex-col mb-6"
+                  >
 
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm text-neutral-300">
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      <span>{game.location}</span>
-                    </div>
-
-                    <div className="flex items-center gap-4 text-sm text-neutral-300">
-                      <div className="flex items-center gap-1">
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                        </svg>
-                        <span>Max {game.max_players} players</span>
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">{getSportName(game.sport_id)}</h3>
+                        <p className="text-sm text-neutral-400">{formatDateTime(game.start_time)}</p>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-4-4h-3m-4 6H7v-2a4 4 0 014-4h0m6-8a4 4 0 11-8 0 4 4 0 018 0z" />
-                        </svg>
-                        <span>
-                          {(participantsCounts[game.game_id] ?? 0)} / {game.max_players} joined
+                      <div className="flex gap-2">
+                        <span className={classNames(
+                          "px-2 py-1 rounded-full text-xs font-medium border",
+                          getStatusColor(game.status)
+                        )}>
+                          {game.status}
                         </span>
-                        <button
-                          onClick={() => fetchParticipantsInfo(game.game_id)}
-                          className="ml-2 text-xs px-2 py-0.5 rounded border border-neutral-700 hover:bg-neutral-800"
-                          title="Refresh participants"
-                        >
-                          ↻
-                        </button>
                       </div>
-                      <div className="flex items-center gap-1">
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-sm text-neutral-300">
                         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
-                        <span>{game.duration_minutes} min</span>
+                        <span>{game.location}</span>
                       </div>
-                    </div>
 
-                    <div className="flex items-center justify-between">
-                      <span className={classNames(
-                        "px-2 py-1 rounded-full text-xs font-medium border",
-                        getSkillLevelColor(game.skill_level)
-                      )}>
-                        {game.skill_level}
-                      </span>
-                      <span className="text-sm font-medium text-white">
-                        {game.cost > 0 ? `$${game.cost}` : "Free"}
-                      </span>
-                    </div>
-
-                    {game.notes && (
-                      <div className="pt-2 border-t border-neutral-800">
-                        <p className="text-sm text-neutral-400">{game.notes}</p>
-                      </div>
-                    )}
-                  </div>
-                <div className="mt-auto">
-                  {user && user.user_id === game.host_id ? (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setEditingGame({ ...game })}
-                        className="flex-1 mt-4 py-2 bg-blue-500 hover:bg-blue-400 text-white rounded-lg transition-colors font-medium"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteGame(game.game_id)}
-                        className="flex-1 mt-4 py-2 bg-red-500 hover:bg-red-400 text-white rounded-lg transition-colors font-medium"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  ) : (
-                    game.status === "Full" ? (
-                      <div className="w-full mt-4 p-3 rounded-lg border border-yellow-500/40 bg-yellow-500/10">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium text-yellow-300">Game is full — Queue</span>
+                      <div className="flex items-center gap-4 text-sm text-neutral-300">
+                        <div className="flex items-center gap-1">
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                          </svg>
+                          <span>Max {game.max_players} players</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-4-4h-3m-4 6H7v-2a4 4 0 014-4h0m6-8a4 4 0 11-8 0 4 4 0 018 0z" />
+                          </svg>
+                          <span>
+                            {(participantsCounts[game.game_id] ?? 0)} / {game.max_players} joined
+                          </span>
                           <button
-                            onClick={() => fetchWaitlist(game.game_id)}
-                            className="text-xs px-2 py-1 rounded border border-yellow-500/40 hover:bg-yellow-500/20"
+                            onClick={() => fetchParticipantsInfo(game.game_id)}
+                            className="ml-2 text-xs px-2 py-0.5 rounded border border-neutral-700 hover:bg-neutral-800"
+                            title="Refresh participants"
                           >
-                            Refresh
+                            ↻
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>{game.duration_minutes} min</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className={classNames(
+                          "px-2 py-1 rounded-full text-xs font-medium border",
+                          getSkillLevelColor(game.skill_level)
+                        )}>
+                          {game.skill_level}
+                        </span>
+                        <span className="text-sm font-medium text-white">
+                          {game.cost > 0 ? `$${game.cost}` : "Free"}
+                        </span>
+                      </div>
+
+                      {game.notes && (
+                        <div className="pt-2 border-t border-neutral-800">
+                          <p className="text-sm text-neutral-400">{game.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-auto">
+                      {user && user.user_id === game.host_id ? (
+                        <div className="mt-4">
+                          <button
+                            onClick={() => setEditingGame(game)}
+                            className="w-full py-2 bg-blue-500 hover:bg-blue-400 text-white rounded-lg font-medium"
+                          >
+                            Edit
                           </button>
                         </div>
 
-                        {waitlistLoading[game.game_id] ? (
-                          <p className="text-xs text-neutral-300">Loading queue…</p>
-                        ) : waitlistError[game.game_id] ? (
-                          <p className="text-xs text-red-400">{waitlistError[game.game_id]}</p>
-                        ) : (waitlists[game.game_id]?.length ?? 0) === 0 ? (
-                          <p className="text-xs text-neutral-300">No one waiting yet.</p>
-                        ) : (
-                          <ol className="list-decimal pl-5 space-y-1 text-sm text-neutral-200">
-                            {waitlists[game.game_id].map((u, idx) => (
-                              <li key={String(u.user_id ?? u.id)}>
-                                {(u.name ?? u.full_name ?? `User ${u.user_id ?? u.id}`)} — position <b>{idx + 1}</b>
-                              </li>
-                            ))}
-                          </ol>
-                        )}
+                      ) : (
 
-                        <div className="mt-3 flex gap-2">
-                          {user ? (
-                            (() => {
-                              const list = waitlists[game.game_id] || [];
-                              const meIdx = list.findIndex(i => String(i.user_id ?? i.id) === String(user.user_id));
-                              const inQueue = meIdx >= 0;
-                              return inQueue ? (
-                                <>
-                                  <span className="text-xs text-neutral-200">Your position: <b>{meIdx + 1}</b></span>
+                        game.status === "Full" ? (
+                          <>
+                            {/* 🟨 Yellow queue info box */}
+                            <div className="w-full mt-4 p-3 rounded-lg border border-yellow-500/40 bg-yellow-500/10">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium text-yellow-300">Game is full — Queue</span>
+                                <button
+                                  onClick={() => fetchWaitlist(game.game_id)}
+                                  className="text-xs px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700 transition"
+                                >
+                                  Refresh
+                                </button>
+                              </div>
+
+                              {waitlistLoading[game.game_id] ? (
+                                <p className="text-xs text-neutral-300">Loading queue…</p>
+                              ) : waitlistError[game.game_id] ? (
+                                <p className="text-xs text-red-400">{waitlistError[game.game_id]}</p>
+                              ) : (waitlists[game.game_id]?.length ?? 0) === 0 ? (
+                                <p className="text-xs text-neutral-300">No one waiting yet.</p>
+                              ) : (
+                                <ol className="list-decimal pl-5 space-y-1 text-sm text-neutral-200">
+                                  {waitlists[game.game_id].map((u, idx) => (
+                                    <li key={String(u.user_id ?? u.id)}>
+                                      {(u.name ?? u.full_name ?? `User ${u.user_id ?? u.id}`)} — position{" "}
+                                      <b>{idx + 1}</b>
+                                    </li>
+                                  ))}
+                                </ol>
+                              )}
+
+                              {/* 👤 Show user’s position if in queue */}
+                              {user && (() => {
+                                const list = waitlists[game.game_id] || [];
+                                const meIdx = list.findIndex(i => String(i.user_id ?? i.id) === String(user.user_id));
+                                if (meIdx >= 0) {
+                                  return (
+                                    <p className="mt-2 text-xs text-white-300">
+                                      <b> You are currently in position{meIdx + 1}</b>.
+                                    </p>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </div>
+
+                            {/* 💜 Join/Leave button below box */}
+                            <div className="mt-4">
+                              {user ? (() => {
+                                const list = waitlists[game.game_id] || [];
+                                const meIdx = list.findIndex(i => String(i.user_id ?? i.id) === String(user.user_id));
+                                const inQueue = meIdx >= 0;
+                                return inQueue ? (
                                   <button
                                     onClick={() => leaveWaitlist(game.game_id, user.user_id)}
-                                    className="ml-auto px-3 py-1 text-sm rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white"
+                                    className="w-full py-2 text-white rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 font-medium transition"
                                   >
                                     Leave queue
                                   </button>
-                                </>
-                              ) : (
-                                <button
-                                  onClick={() => joinWaitlist(game.game_id, user.user_id)}
-                                  className="ml-auto px-3 py-1 text-sm rounded bg-violet-500 hover:bg-violet-400 text-white"
-                                >
-                                  Join queue
-                                </button>
-                              );
-                            })()
-                          ) : (
-                            <span className="text-xs text-neutral-400">Login to join the queue</span>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      iAmInGame[game.game_id] ? (
-                        <button
-                          onClick={() => leaveGame(game.game_id)}
-                          disabled={leavingGameId === game.game_id}
-                          className={classNames(
-                            "w-full mt-4 py-2 text-white rounded-lg transition-colors font-medium",
-                            leavingGameId === game.game_id
-                              ? "bg-neutral-800 cursor-not-allowed"
-                              : "bg-red-500 hover:bg-red-400"
-                          )}
-                        >
-                          {leavingGameId === game.game_id ? "Leaving..." : "Leave Game"}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => joinGame(game.game_id)}
-                          disabled={joiningGameId === game.game_id}
-                          className={classNames(
-                            "w-full mt-4 py-2 text-white rounded-lg transition-colors font-medium",
-                            joiningGameId === game.game_id
-                              ? "bg-neutral-800 cursor-not-allowed"
-                              : "bg-violet-500 hover:bg-violet-400"
-                          )}
-                        >
-                          {joiningGameId === game.game_id ? "Joining..." : "Join Game"}
-                        </button>
-                      )
-                    )
-                  )}
-                </div>
+                                ) : (
+                                  <button
+                                    onClick={() => joinWaitlist(game.game_id, user.user_id)}
+                                    className="w-full py-2 text-white rounded-lg bg-violet-500 hover:bg-violet-400 font-medium transition"
+                                  >
+                                    Join queue
+                                  </button>
+                                );
+                              })() : (
+                                <span className="text-xs text-neutral-400">Login to join the queue</span>
+                              )}
+                            </div>
+                          </>
+                        )
+
+                          : (
+                            iAmInGame[game.game_id] ? (
+                              <button
+                                onClick={() => leaveGame(game.game_id)}
+                                disabled={leavingGameId === game.game_id}
+                                className={classNames(
+                                  "w-full mt-4 py-2 text-white rounded-lg transition-colors font-medium",
+                                  leavingGameId === game.game_id
+                                    ? "bg-neutral-800 cursor-not-allowed"
+                                    : "bg-red-500 hover:bg-red-400"
+                                )}
+                              >
+                                {leavingGameId === game.game_id ? "Leaving..." : "Leave Game"}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => joinGame(game.game_id)}
+                                disabled={joiningGameId === game.game_id}
+                                className={classNames(
+                                  "w-full mt-4 py-2 text-white rounded-lg transition-colors font-medium",
+                                  joiningGameId === game.game_id
+                                    ? "bg-neutral-800 cursor-not-allowed"
+                                    : "bg-violet-500 hover:bg-violet-400"
+                                )}
+                              >
+                                {joiningGameId === game.game_id ? "Joining..." : "Join Game"}
+                              </button>
+                            )
+                          )
+                      )}
+                    </div>
 
 
-                </div>
+                  </div>
                 </>
               ))}
             </div>
           )}
         </div>
       </div>
+      {/* ✏️ Edit Game Modal */}
+      {editingGame && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm overflow-y-auto">
+          <div className="relative bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl p-8 max-w-3xl w-full mx-4 my-10">
+            {/* ❌ Close button */}
+            <button
+              type="button"
+              onClick={() => setEditingGame(null)}
+              className="absolute top-6 right-4 text-neutral-400 hover:text-white hover:scale-110 transition-transform text-2xl leading-none"
+              aria-label="Close"
+            >
+              ×
+            </button>
 
- {/*editing game model*/}     
-{editingGame && (
-  <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 overflow-y-auto">
-    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 max-w-2xl w-full my-8">
-      <h2 className="text-xl font-semibold text-white mb-4">Edit Game</h2>
-      <form onSubmit={handleUpdateGame} className="space-y-4">
-       
-        {/* Sport */}
-        <div>
-          <label className="block text-sm mb-1 text-white">Sport</label>
-          <select
-            value={editingGame.sport_id}
-            onChange={(e) =>
-              setEditingGame({ ...editingGame, sport_id: parseInt(e.target.value) })
-            }
-            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
-          >
-            {sports.map((sport) => (
-              <option key={sport.sport_id} value={sport.sport_id}>
-                {sport.name}
-              </option>
-            ))}
-          </select>
+            {/* Title */}
+            <div className="mb-6">
+              <h2 className="text-2xl font-semibold text-white">Edit Game</h2>
+              <p className="text-sm text-neutral-400 mt-1">
+                Update game details and settings below.
+              </p>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleUpdateGame} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* Sport */}
+                <div className="flex flex-col">
+                  <label className="text-sm text-neutral-300 mb-1.5">Sport</label>
+                  <div className="relative">
+                    <select
+                      value={editingGame.sport_id}
+                      onChange={(e) =>
+                        setEditingGame({
+                          ...editingGame,
+                          sport_id: parseInt(e.target.value),
+                        })
+                      }
+                      className="appearance-none w-full rounded-lg bg-neutral-950/80 border border-neutral-700 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent pr-8"
+                    >
+                      {sports.map((sport) => (
+                        <option key={sport.sport_id} value={sport.sport_id}>
+                          {sport.name}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none">
+                      ▼
+                    </span>
+                  </div>
+                </div>
+
+                {/* Start Time */}
+                <div className="flex flex-col">
+                  <label className="text-sm text-neutral-300 mb-1.5">Start Time</label>
+                  <input
+                    type="datetime-local"
+                    value={editingGame.start_time?.slice(0, 16) || ""}
+                    onChange={(e) =>
+                      setEditingGame({ ...editingGame, start_time: e.target.value })
+                    }
+                    className="w-full rounded-lg bg-neutral-950/80 border border-neutral-700 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Duration */}
+                <div className="flex flex-col">
+                  <label className="text-sm text-neutral-300 mb-1.5">Duration (minutes)</label>
+                  <input
+                    type="number"
+                    min="15"
+                    value={editingGame.duration_minutes}
+                    onChange={(e) =>
+                      setEditingGame({
+                        ...editingGame,
+                        duration_minutes: parseInt(e.target.value),
+                      })
+                    }
+                    className="w-full rounded-lg bg-neutral-950/80 border border-neutral-700 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Location */}
+                <div className="flex flex-col">
+                  <label className="text-sm text-neutral-300 mb-1.5">Location</label>
+                  <input
+                    type="text"
+                    value={editingGame.location}
+                    onChange={(e) =>
+                      setEditingGame({ ...editingGame, location: e.target.value })
+                    }
+                    placeholder="Enter location"
+                    className="w-full rounded-lg bg-neutral-950/80 border border-neutral-700 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Skill Level */}
+                <div className="flex flex-col">
+                  <label className="text-sm text-neutral-300 mb-1.5">Skill Level</label>
+                  <div className="relative">
+                    <select
+                      value={editingGame.skill_level}
+                      onChange={(e) =>
+                        setEditingGame({ ...editingGame, skill_level: e.target.value })
+                      }
+                      className="appearance-none w-full rounded-lg bg-neutral-950/80 border border-neutral-700 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent pr-8"
+                    >
+                      <option value="Beginner">Beginner</option>
+                      <option value="Intermediate">Intermediate</option>
+                      <option value="Advanced">Advanced</option>
+                    </select>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none">
+                      ▼
+                    </span>
+                  </div>
+                </div>
+
+                {/* Max Players */}
+                <div className="flex flex-col">
+                  <label className="text-sm text-neutral-300 mb-1.5">Max Players</label>
+                  <input
+                    type="number"
+                    min="2"
+                    value={editingGame.max_players}
+                    onChange={(e) =>
+                      setEditingGame({
+                        ...editingGame,
+                        max_players: parseInt(e.target.value),
+                      })
+                    }
+                    className="w-full rounded-lg bg-neutral-950/80 border border-neutral-700 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Cost */}
+                <div className="flex flex-col">
+                  <label className="text-sm text-neutral-300 mb-1.5">Cost ($)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editingGame.cost}
+                    onChange={(e) =>
+                      setEditingGame({
+                        ...editingGame,
+                        cost: parseFloat(e.target.value),
+                      })
+                    }
+                    className="w-full rounded-lg bg-neutral-950/80 border border-neutral-700 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Status */}
+                <div className="flex flex-col">
+                  <label className="text-sm text-neutral-300 mb-1.5">Status</label>
+                  <div className="relative">
+                    <select
+                      value={editingGame.status}
+                      onChange={(e) =>
+                        setEditingGame({ ...editingGame, status: e.target.value })
+                      }
+                      className="appearance-none w-full rounded-lg bg-neutral-950/80 border border-neutral-700 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent pr-8"
+                    >
+                      <option value="Open">Open</option>
+                      <option value="Full">Full</option>
+                      <option value="Cancelled">Cancelled</option>
+                    </select>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none">
+                      ▼
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="text-sm text-neutral-300 mb-1.5">Notes</label>
+                <textarea
+                  value={editingGame.notes || ""}
+                  onChange={(e) =>
+                    setEditingGame({ ...editingGame, notes: e.target.value })
+                  }
+                  placeholder="Add any additional notes..."
+                  className="w-full rounded-lg bg-neutral-950/80 border border-neutral-700 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-y min-h-[80px] max-h-[160px]"
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  className="flex-1 py-2 bg-blue-500 hover:bg-blue-400 text-white rounded-lg font-medium"
+                >
+                  Save Changes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingGame(null)}
+                  className="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium"
+                >
+                  Cancel
+                </button>
+              </div>
+
+              {/* Delete */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to delete this game?')) {
+                    handleDeleteGame(editingGame.game_id);
+                    setEditingGame(null);
+                  }
+                }}
+                className="w-full -mt-10 py-2 !bg-red-500 hover:!bg-red-600 text-white rounded-lg font-medium transition-colors"
+              >
+                Delete Game
+              </button>
+            </form>
+          </div>
         </div>
-
-        {/* Start Time */}
-        <div>
-          <label className="block text-sm mb-1 text-white">Start Time</label>
-          <input
-            type="datetime-local"
-            value={editingGame.start_time?.slice(0,16) || ""}
-            onChange={(e) => setEditingGame({ ...editingGame, start_time: e.target.value })}
-            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
-          />
-        </div>
-
-        {/* Duration */}
-        <div>
-          <label className="block text-sm mb-1 text-white">Duration (minutes)</label>
-          <input
-            type="number"
-            value={editingGame.duration_minutes}
-            onChange={(e) =>
-              setEditingGame({ ...editingGame, duration_minutes: parseInt(e.target.value) })
-            }
-            min="15"
-            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
-          />
-        </div>
-
-        {/* Location */}
-        <div>
-          <label className="block text-sm mb-1 text-white">Location</label>
-          <input
-            type="text"
-            value={editingGame.location}
-            onChange={(e) => setEditingGame({ ...editingGame, location: e.target.value })}
-            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
-          />
-        </div>
-
-        {/* Skill Level */}
-        <div>
-          <label className="block text-sm mb-1 text-white">Skill Level</label>
-          <select
-            value={editingGame.skill_level}
-            onChange={(e) =>
-              setEditingGame({ ...editingGame, skill_level: e.target.value })
-            }
-            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
-          >
-            <option value="Beginner">Beginner</option>
-            <option value="Intermediate">Intermediate</option>
-            <option value="Advanced">Advanced</option>
-          </select>
-        </div>
-
-        {/* Max Players */}
-        <div>
-          <label className="block text-sm mb-1 text-white">Max Players</label>
-          <input
-            type="number"
-            value={editingGame.max_players}
-            onChange={(e) => setEditingGame({ ...editingGame, max_players: parseInt(e.target.value) })}
-            min="2"
-            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
-          />
-        </div>
-
-        {/* Cost */}
-        <div>
-          <label className="block text-sm mb-1 text-white">Cost ($)</label>
-          <input
-            type="number"
-            value={editingGame.cost}
-            onChange={(e) => setEditingGame({ ...editingGame, cost: parseFloat(e.target.value) })}
-            min="0"
-            step="0.01"
-            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
-          />
-        </div>
-
-        {/* Status */}
-        <div>
-          <label className="block text-sm mb-1 text-white">Status</label>
-          <select
-            value={editingGame.status}
-            onChange={(e) =>
-              setEditingGame({ ...editingGame, status: e.target.value })
-            }
-            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
-          >
-            <option value="Open">Open</option>
-            <option value="Full">Full</option>
-            <option value="Cancelled">Cancelled</option>
-          </select>
-        </div>
-
-        {/* Notes */}
-        <div>
-          <label className="block text-sm mb-1 text-white">Notes</label>
-          <textarea
-            value={editingGame.notes || ""}
-            onChange={(e) => setEditingGame({ ...editingGame, notes: e.target.value })}
-            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white resize-none"
-          />
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            className="flex-1 py-2 bg-blue-500 hover:bg-blue-400 text-white rounded-lg font-medium"
-          >
-            Save Changes
-          </button>
-          <button
-            type="button"
-            onClick={() => setEditingGame(null)}
-            className="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium"
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-)}
-
+      )}
 
 
       {/* Toast */}
