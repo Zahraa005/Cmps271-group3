@@ -943,14 +943,14 @@ useEffect(() => {
               <p className="text-neutral-400">Be the first to create a game!</p>
             </div>
           ) : (
-            <div className="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {games.map((game) => (
                 <>
                   {game.status === "Full" && !waitlists[game.game_id] && !waitlistLoading[game.game_id] && fetchWaitlist(game.game_id)}
                   <div
                     key={game.game_id}
 
-                    className="break-inside-avoid bg-neutral-900/50 border border-neutral-800 rounded-xl p-6 hover:border-neutral-700 transition-colors flex flex-col mb-6"
+                    className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-6 hover:border-neutral-700 transition-colors flex flex-col"
                   >
 
                     <div className="flex items-start justify-between mb-4">
