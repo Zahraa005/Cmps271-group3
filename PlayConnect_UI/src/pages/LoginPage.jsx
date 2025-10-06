@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import ThemeToggle from "../theme/ThemeToggle";
 import { useNavigate } from "react-router-dom";
 
 function classNames(...xs) {
@@ -85,14 +86,14 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-neutral-950 relative overflow-hidden">
+    <main className="min-h-screen bg-[rgb(var(--pc-bg))] text-neutral-900 dark:text-white relative overflow-hidden transition-colors duration-300">
       {/* Background patterns - matching ProfileCreation */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-20"
         style={{
           backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
+            "linear-gradient(var(--pc-grid) 1px, transparent 1px), linear-gradient(90deg, var(--pc-grid) 1px, transparent 1px)",
           backgroundSize: "24px 24px",
           backgroundPosition: "0 0, 0 0",
         }}
@@ -103,7 +104,7 @@ export default function LoginPage() {
         className="pointer-events-none absolute inset-0 mix-blend-screen"
         style={{
           backgroundImage:
-            "radial-gradient(600px 300px at 20% 0%, rgba(167,139,250,0.18), transparent 60%), radial-gradient(600px 300px at 80% 100%, rgba(244,114,182,0.14), transparent 55%)",
+            "radial-gradient(600px 300px at 20% 0%, var(--pc-g1), transparent 60%), radial-gradient(600px 300px at 80% 100%, var(--pc-g2), transparent 55%)",
         }}
       />
       
@@ -128,15 +129,18 @@ export default function LoginPage() {
               <span className="animate-bounce ml-1">🏀🎾</span>
             </a>
           </div>
-          <a
-            href="/"
-            className="text-neutral-400 hover:text-neutral-200 transition-colors focus:outline-none"
-          >
-            <span>Back to Home</span>
-            <svg className="h-5 w-5 translate-x-0 transition-transform duration-200 group-hover:translate-x-1" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-              <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L13.586 11H4a1 1 0 110-2h9.586l-3.293-3.293a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </a>
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+            <a
+              href="/"
+              className="text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors focus:outline-none"
+            >
+              <span>Back to Home</span>
+              <svg className="h-5 w-5 translate-x-0 transition-transform duration-200 group-hover:translate-x-1" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L13.586 11H4a1 1 0 110-2h9.586l-3.293-3.293a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </a>
+          </div>
         </div>
       </div>
 
@@ -145,19 +149,19 @@ export default function LoginPage() {
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-fuchsia-400 to-indigo-400 animate-pulse">
             Welcome back
           </h1>
-          <p className="mt-2 text-sm text-neutral-400">Sign in to your PlayConnect account</p>
+          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">Sign in to your PlayConnect account</p>
         </header>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Email */}
           <div>
-            <label className="block text-sm mb-1 text-white">Email address</label>
+            <label className="block text-sm mb-1 text-neutral-800 dark:text-white">Email address</label>
             <div className="relative">
               <input
                 type="email"
                 className={classNames(
-                  "w-full rounded-xl bg-neutral-900/60 border px-4 py-3 text-white placeholder-neutral-500 outline-none shadow-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-all duration-300 hover:border-violet-400",
-                  emailOk || !email ? "border-neutral-700" : "border-rose-500"
+                  "w-full rounded-xl border px-4 py-3 outline-none shadow-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-all duration-300 hover:border-violet-400 bg-white text-neutral-900 placeholder-neutral-500 dark:bg-neutral-900/60 dark:text-white",
+                  emailOk || !email ? "border-neutral-300 dark:border-neutral-700" : "border-rose-500"
                 )}
                 placeholder="Enter your email"
                 value={email}
@@ -179,13 +183,13 @@ export default function LoginPage() {
 
           {/* Password */}
           <div>
-            <label className="block text-sm mb-1 text-white">Password</label>
+            <label className="block text-sm mb-1 text-neutral-800 dark:text-white">Password</label>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
                 className={classNames(
-                  "w-full rounded-xl bg-neutral-900/60 border px-4 py-3 text-white placeholder-neutral-500 outline-none shadow-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-all duration-300 hover:border-violet-400",
-                  passwordOk || !password ? "border-neutral-700" : "border-rose-500"
+                  "w-full rounded-xl border px-4 py-3 outline-none shadow-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-all duration-300 hover:border-violet-400 bg-white text-neutral-900 placeholder-neutral-500 dark:bg-neutral-900/60 dark:text-white",
+                  passwordOk || !password ? "border-neutral-300 dark:border-neutral-700" : "border-rose-500"
                 )}
                 placeholder="Enter your password"
                 value={password}
@@ -231,15 +235,15 @@ export default function LoginPage() {
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                className="h-5 w-5 rounded-md border border-neutral-600 bg-neutral-900/60 accent-violet-500 shadow-inner transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:ring-offset-0 focus:ring-offset-neutral-900 disabled:opacity-50"
+                className="h-5 w-5 rounded-md border border-neutral-400 dark:border-neutral-600 bg-white dark:bg-neutral-900/60 accent-violet-500 shadow-inner transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:ring-offset-1 focus:ring-offset-white dark:focus:ring-offset-neutral-900 disabled:opacity-50"
                 disabled={loading}
               />
-              <span className="text-sm font-medium text-neutral-300 group-hover:text-white tracking-wide">Remember me</span>
+              <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300 group-hover:text-neutral-900 dark:group-hover:text-white tracking-wide">Remember me</span>
             </label>
             <button
               type="button"
               onClick={handleForgotPassword}
-              className="flex items-center gap-1 text-sm text-violet-400 hover:text-violet-300 transition-colors font-medium"
+              className="flex items-center gap-1 text-sm text-violet-600 hover:text-violet-500 dark:text-violet-400 dark:hover:text-violet-300 transition-colors font-medium"
               disabled={loading}
             >
               <span>Forgot password?</span>
@@ -273,16 +277,16 @@ export default function LoginPage() {
 
         {/* Divider */}
         <div className="my-6 flex items-center">
-          <div className="flex-1 h-px bg-neutral-800"></div>
+          <div className="flex-1 h-px bg-neutral-200 dark:bg-neutral-800"></div>
           <span className="px-4 text-sm text-neutral-500">or</span>
-          <div className="flex-1 h-px bg-neutral-800"></div>
+          <div className="flex-1 h-px bg-neutral-200 dark:bg-neutral-800"></div>
         </div>
 
         {/* Social login buttons */}
         <div className="space-y-3">
           <button
             type="button"
-            className="w-full rounded-xl border border-neutral-700 bg-neutral-900/50 text-white py-3 font-medium hover:bg-neutral-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-600"
+            className="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white text-neutral-900 dark:bg-neutral-900/50 dark:text-white py-3 font-medium hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:focus-visible:ring-neutral-600"
             disabled={loading}
           >
             <div className="flex items-center justify-center gap-3">
@@ -299,11 +303,11 @@ export default function LoginPage() {
 
         {/* Sign up link */}
         <div className="mt-8 text-center">
-          <p className="text-sm text-neutral-400">
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
             Don't have an account?{" "}
             <a 
               href="/signup" 
-              className="text-violet-400 hover:text-violet-300 transition-colors font-medium"
+              className="text-violet-600 hover:text-violet-500 dark:text-violet-400 dark:hover:text-violet-300 transition-colors font-medium"
             >
               Sign up
             </a>
@@ -313,7 +317,7 @@ export default function LoginPage() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed left-1/2 top-4 -translate-x-1/2 rounded-full bg-neutral-900 border border-neutral-700 px-4 py-2 text-sm text-neutral-100 shadow-lg z-50">
+        <div className="fixed left-1/2 top-4 -translate-x-1/2 rounded-full bg-white text-neutral-900 border border-neutral-300 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-700 px-4 py-2 text-sm shadow-lg z-50">
           {toast}
         </div>
       )}

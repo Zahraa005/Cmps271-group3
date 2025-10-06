@@ -7,8 +7,6 @@
   font-weight: 400;
 
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -18,7 +16,7 @@
 
 /* Theme color variables for background animations */
 :root {
-  --pc-grid: rgba(0,0,0,0.06);
+  --pc-grid: rgba(0,0,0,0.15);
   --pc-g1: rgba(168,85,247,0.14);   /* violet-ish */
   --pc-g2: rgba(99,102,241,0.12);   /* indigo-ish */
   --pc-overlay: 0.06;               /* texture opacity */
@@ -44,10 +42,15 @@ a:hover {
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  background-color: #ffffff; /* ensure light background by default */
+  color: #111827; /* neutral-900 */
+}
+
+.dark body {
+  background-color: #0a0a0a; /* near-neutral-950 */
+  color: #f5f5f5; /* neutral-100-ish */
 }
 
 h1 {

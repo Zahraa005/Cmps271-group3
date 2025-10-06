@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 
 const STORAGE_KEY = 'theme'; // 'light' | 'dark' | 'system'
 
-function applyTheme(mode) {
+export function applyTheme(mode) {
   const root = document.documentElement;
+  const body = document.body;
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const dark = mode === 'dark' || (mode === 'system' && prefersDark);
   root.classList.toggle('dark', dark);
+  if (body) body.classList.toggle('dark', dark);
 }
 
 export function useTheme() {
