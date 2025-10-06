@@ -894,3 +894,151 @@ async def delete_game_instance(game_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+from typing import Optional
+
+@app.get("/dashboard/games")
+async def dashboard_games(
+    sport_id: Optional[int] = None,
+    status: Optional[str] = None,
+    skill_level: Optional[str] = None,
+    host_id: Optional[int] = None,
+    search: Optional[str] = None,        # matches location or notes (ILIKE)
+    from_: Optional[str] = None,         # ISO datetime string (e.g., 2025-10-06T18:00:00Z)
+    to: Optional[str] = None,            # ISO datetime string
+    spots: Optional[str] = None,         # "available" | "full"
+    sort: Optional[str] = "start_time:asc",  # whitelist below
+    page: int = 1,
+    page_size: int = 10,
+):
+    """
+    Filtered, paginated list of games for the dashboard.
+
+    Query params:
+      - sport_id, status, skill_level, host_id
+      - from_ (start_time >=), to (start_time <=)
+      - search (ILIKE over location + notes)
+      - spots: "available" (players < max) or "full" (players >= max)
+      - sort: "start_time:asc|desc" or "created_at:asc|desc"
+      - page (1-based), page_size
+    """
+    try:
+        # --- sanitize paging ---
+        page = max(1, page)
+        page_size = max(1, min(page_size, 100))
+        offset = (page - 1) * page_size
+
+        # --- whitelist sorting ---
+        allowed_sort = {
+            "start_time:asc":  'gi.start_time ASC',
+            "start_time:desc": 'gi.start_time DESC',
+            "created_at:asc":  'gi.created_at ASC',
+            "created_at:desc": 'gi.created_at DESC',
+        }
+        order_by_sql = allowed_sort.get(sort or "", 'gi.start_time ASC')
+
+        # --- base SELECT w/ participant count and spots_left ---
+        # count players via LEFT JOIN subquery; adjust if you want to exclude HOST
+        base_select = '''
+            SELECT
+                gi.*,
+                COALESCE(gpc.cnt, 0) AS participants_count,
+                (gi.max_players - COALESCE(gpc.cnt, 0)) AS spots_left
+            FROM public."Game_instance" AS gi
+            LEFT JOIN (
+                SELECT gp.game_id, COUNT(*) AS cnt
+                FROM public."Game_participants" AS gp
+                GROUP BY gp.game_id
+            ) AS gpc ON gpc.game_id = gi.game_id
+        '''
+
+        # --- dynamic WHERE ---
+        conditions = []
+        params = []
+
+        if sport_id is not None:
+            conditions.append(f"gi.sport_id = ${len(params) + 1}")
+            params.append(sport_id)
+
+        if status:
+            conditions.append(f"gi.status = ${len(params) + 1}")
+            params.append(status)
+
+        if skill_level:
+            conditions.append(f"gi.skill_level = ${len(params) + 1}")
+            params.append(skill_level)
+
+        if host_id is not None:
+            conditions.append(f"gi.host_id = ${len(params) + 1}")
+            params.append(host_id)
+
+        if from_:
+            # Expect ISO string; Postgres will parse to timestamptz if needed
+            conditions.append(f"gi.start_time >= ${len(params) + 1}")
+            params.append(from_)
+
+        if to:
+            conditions.append(f"gi.start_time <= ${len(params) + 1}")
+            params.append(to)
+
+        if search:
+            conditions.append(
+                f"(gi.location ILIKE ${len(params) + 1} OR gi.notes ILIKE ${len(params) + 1})"
+            )
+            params.append(f"%{search}%")
+
+        if spots:
+            if spots.lower() == "available":
+                conditions.append(f"(COALESCE(gpc.cnt, 0) < gi.max_players)")
+            elif spots.lower() == "full":
+                conditions.append(f"(COALESCE(gpc.cnt, 0) >= gi.max_players)")
+            # else ignore invalid values
+
+        where_sql = ""
+        if conditions:
+            where_sql = " WHERE " + " AND ".join(conditions)
+
+        # --- final queries: count + page ---
+        count_sql = f'''
+            SELECT COUNT(*)::INT AS total
+            FROM (
+                {base_select}
+                {where_sql}
+            ) AS q
+        '''
+
+        page_sql = f'''
+            {base_select}
+            {where_sql}
+            ORDER BY {order_by_sql}
+            LIMIT {page_size} OFFSET {offset}
+        '''
+
+        async with Database.pool.acquire() as connection:
+            # total count
+            total_row = await connection.fetchrow(count_sql, *params)
+            total = int(total_row["total"]) if total_row else 0
+
+            # page items
+            rows = await connection.fetch(page_sql, *params)
+            items = [dict(r) for r in rows]
+
+            # optional: normalize/ensure serializable types (e.g., Decimal)
+            for it in items:
+                # Convert Decimal cost -> float for JSON friendliness (optional)
+                if "cost" in it and it["cost"] is not None:
+                    try:
+                        it["cost"] = float(it["cost"])
+                    except Exception:
+                        pass
+
+            has_next = (offset + len(items)) < total
+
+            return {
+                "items": items,
+                "page": page,
+                "page_size": page_size,
+                "total": total,
+                "has_next": has_next,
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

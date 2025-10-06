@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
@@ -45,6 +45,20 @@ export default function DashboardPage() {
   const [formLoading, setFormLoading] = useState(false);
   const [formErrors, setFormErrors] = useState({});
 
+  //Dashboard Filters
+  const [sportFilter, setSportFilter] = useState("");           // number or ""
+  const [statusFilter, setStatusFilter] = useState("");         // "Open" | "Full" | "Cancelled" | ""
+  const [skillFilter, setSkillFilter] = useState("");           // "Beginner" | "Intermediate" | "Advanced" | ""
+  const [fromISO, setFromISO] = useState("");                   // ISO string or ""
+  const [toISO, setToISO] = useState("");                       // ISO string or ""
+  const [spotsFilter, setSpotsFilter] = useState("");           // "available" | "full" | ""
+  const [sort, setSort] = useState("start_time:asc");           // backend whitelist
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
+  const [total, setTotal] = useState(0);
+  const [hasNext, setHasNext] = useState(false);
+  const [searchText, setSearchText] = useState("");
+
   // Toast cleanup
   useEffect(() => {
     if (!toast) return;
@@ -79,25 +93,60 @@ export default function DashboardPage() {
     }
   }, [user, formData.host_id]);
 
+  // Re-fetch when any filter or paging changes
+useEffect(() => {
+  fetchGames();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [sportFilter, statusFilter, skillFilter, fromISO, toISO, spotsFilter, sort, page, pageSize, searchText]);
+
+
+  //I replaced fetchGames() to call /dashboard/games
   const fetchGames = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://127.0.0.1:8000/game-instances');
-      if (response.ok) {
-        const data = await response.json();
-        setGames(data);
-        // After games load, fetch participant info for each
-        fetchAllParticipantsInfo(data);
-      } else {
+
+      // Build query params (send only non-empty)
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("page_size", String(pageSize));
+      params.set("sort", sort);
+
+      if (sportFilter) params.set("sport_id", String(sportFilter));
+      if (statusFilter) params.set("status", statusFilter);
+      if (skillFilter) params.set("skill_level", skillFilter);
+      if (fromISO) params.set("from_", fromISO);   // NOTE: from_ with underscore
+      if (toISO) params.set("to", toISO);
+      if (spotsFilter) params.set("spots", spotsFilter);
+      if (searchText.trim()) params.set("search", searchText.trim());
+
+      const response = await fetch(`${API_BASE}/dashboard/games?${params.toString()}`);
+      if (!response.ok) {
         setToast("Failed to fetch games");
+        setGames([]);
+        setTotal(0);
+        setHasNext(false);
+        return;
       }
+
+      const data = await response.json();
+      const items = Array.isArray(data?.items) ? data.items : [];
+      setGames(items);
+      setTotal(Number(data?.total || 0));
+      setHasNext(Boolean(data?.has_next));
+
+      // After games load, fetch participant info for each (keeps your existing counters)
+      await fetchAllParticipantsInfo(items);
     } catch (error) {
-      console.error('Error fetching games:', error);
+      console.error("Error fetching games:", error);
       setToast("Failed to fetch games");
+      setGames([]);
+      setTotal(0);
+      setHasNext(false);
     } finally {
       setLoading(false);
     }
   };
+
 
   const fetchSports = async () => {
     try {
@@ -744,6 +793,130 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+        {/* Filter Bar */}
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <input
+            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
+            placeholder="Search location/notes"
+            value={searchText}
+            onChange={(e) => { setSearchText(e.target.value); setPage(1); }}
+          />
+
+          <select
+            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
+            value={sportFilter}
+            onChange={(e) => { setSportFilter(e.target.value); setPage(1); }}
+          >
+            <option value="">All sports</option>
+            {sports.map(s => (
+              <option key={s.sport_id} value={s.sport_id}>{s.name}</option>
+            ))}
+          </select>
+
+            <select
+              className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+            >
+              <option value="">Any status</option>
+              <option value="Open">Open</option>
+              <option value="Full">Full</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+
+            <select
+              className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
+              value={skillFilter}
+              onChange={(e) => { setSkillFilter(e.target.value); setPage(1); }}
+            >
+              <option value="">Any skill</option>
+              <option value="Beginner">Beginner</option>
+              <option value="Intermediate">Intermediate</option>
+              <option value="Advanced">Advanced</option>
+            </select>
+
+            <input
+              type="datetime-local"
+              className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
+              value={fromISO ? fromISO.slice(0,16) : ""}
+              onChange={(e) => { setFromISO(e.target.value ? new Date(e.target.value).toISOString() : ""); setPage(1); }}
+            />
+            <input
+              type="datetime-local"
+              className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
+              value={toISO ? toISO.slice(0,16) : ""}
+              onChange={(e) => { setToISO(e.target.value ? new Date(e.target.value).toISOString() : ""); setPage(1); }}
+            />
+
+            <select
+              className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
+              value={spotsFilter}
+              onChange={(e) => { setSpotsFilter(e.target.value); setPage(1); }}
+            >
+              <option value="">Any spots</option>
+              <option value="available">Spots available</option>
+              <option value="full">Full</option>
+            </select>
+
+            <select
+              className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
+              value={sort}
+              onChange={(e) => { setSort(e.target.value); setPage(1); }}
+            >
+              <option value="start_time:asc">Start time ↑</option>
+              <option value="start_time:desc">Start time ↓</option>
+              <option value="created_at:asc">Created ↑</option>
+              <option value="created_at:desc">Created ↓</option>
+            </select>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => { 
+                  setSportFilter(""); setStatusFilter(""); setSkillFilter("");
+                  setFromISO(""); setToISO(""); setSpotsFilter(""); setSort("start_time:asc");
+                  setSearchText(""); setPage(1); setPageSize(12);
+                }}
+                className="flex-1 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg"
+              >
+                Clear
+              </button>
+              <button
+                onClick={() => fetchGames()}
+                className="flex-1 px-4 py-2 bg-violet-500 hover:bg-violet-400 text-white rounded-lg"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+
+          {/* Paging controls (simple) */}
+          <div className="flex items-center gap-2 mb-4">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              className="px-3 py-1 rounded border border-neutral-700 hover:bg-neutral-800 text-white"
+              disabled={page === 1 || loading}
+            >
+              Prev
+            </button>
+            <span className="text-sm text-neutral-400">Page {page}</span>
+            <button
+              onClick={() => hasNext && setPage(p => p + 1)}
+              className="px-3 py-1 rounded border border-neutral-700 hover:bg-neutral-800 text-white"
+              disabled={!hasNext || loading}
+            >
+              Next
+            </button>
+
+            <select
+              className="ml-3 px-2 py-1 rounded border border-neutral-700 bg-neutral-900 text-white"
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+            >
+              {[12, 24, 48].map(s => <option key={s} value={s}>{s}/page</option>)}
+            </select>
+
+            <span className="ml-auto text-sm text-neutral-400">{total} games</span>
+          </div>
 
         {/* Games List */}
         <div className="space-y-6">
