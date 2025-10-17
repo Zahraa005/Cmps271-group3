@@ -19,6 +19,8 @@ from PlayConnect_API.schemas.sport import SportRead, SportCreate
 from PlayConnect_API.schemas.Profile import ProfileCreate
 from PlayConnect_API.schemas.Game_participants import GameParticipantJoin, GameParticipantLeave
 from PlayConnect_API.schemas.Waitlist import WaitlistRead  
+from PlayConnect_API.schemas.report import ReportCreate, ReportRead
+
 
 from datetime import datetime, timezone, timedelta
 import os, secrets, hashlib
@@ -41,50 +43,54 @@ app.add_middleware(
 )
 
 # function to send reset email
-async def send_reset_email(to_email: str, reset_url: str):
-    
-    subject = "PlayConnect Password Reset"
-    body_text = f"Click here to reset your password: {reset_url}\nIf you did not request this, ignore this email."
+from email.message import EmailMessage
+from pathlib import Path
+import os
+import smtplib
+import ssl
 
+
+async def send_reset_email(to_email: str, reset_url: str, first_name: str = "user"):
+    """
+    Sends a styled password reset email using the HTML template in templates/emails/reset_password.html
+    """
+
+    # Load the HTML file
+    template_path = Path(__file__).parent / "templates" / "emails" / "reset_password.html"
+    html_content = template_path.read_text(encoding="utf-8")
+
+    # Replace placeholders
+    html_content = (
+        html_content.replace("{{first_name}}", first_name)
+                    .replace("{{reset_url}}", reset_url)
+    )
+
+    # Fallback plain text
+    plain_text = f"Hi {first_name}, click here to reset your password: {reset_url}"
+
+    # Build the message
     msg = EmailMessage()
     msg["From"] = os.getenv("MAIL_FROM", "no-reply@playconnect.com")
     msg["To"] = to_email
-    msg["Subject"] = subject
-    msg.set_content(body_text)
+    msg["Subject"] = "PlayConnect Password Reset"
+    msg.set_content(plain_text)
+    msg.add_alternative(html_content, subtype="html")
 
-    host = os.getenv("SMTP_HOST")
-    user = os.getenv("SMTP_USERNAME")
-    pwd  = os.getenv("SMTP_PASSWORD")
+    # Connect to the SMTP server
+    smtp_server = os.getenv("MAIL_SERVER", "smtp.gmail.com")
+    smtp_port = int(os.getenv("MAIL_PORT", 465))
+    smtp_user = os.getenv("MAIL_USERNAME")
+    smtp_pass = os.getenv("MAIL_PASSWORD")
 
-    env = os.getenv("ENV", "dev").lower()
+    context = ssl.create_default_context()
+    try:
+        with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context) as server:
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+        print(f"✅ Reset email sent successfully to {to_email}")
+    except Exception as e:
+        print(f"❌ Failed to send reset email: {e}")
 
-    def _send():
-        context = ssl.create_default_context(cafile=certifi.where())
-        port = int(os.getenv("SMTP_PORT", "587"))
-
-        if env != "production":
-            mode = "SSL" if port == 465 else ("STARTTLS" if port == 587 else "PLAIN")
-            print(f"[DEV ONLY] SMTP -> host:{host} port:{port} mode:{mode}")
-
-        if port == 465:
-            with smtplib.SMTP_SSL(host, port, context=context, timeout=10) as s:
-                if user and pwd:
-                    s.login(user, pwd)
-                s.send_message(msg)
-        elif port == 587:
-            with smtplib.SMTP(host, port, timeout=10) as s:
-                s.starttls(context=context)
-                if user and pwd:
-                    s.login(user, pwd)
-                s.send_message(msg)
-        else:
-            with smtplib.SMTP(host, port, timeout=10) as s:
-                if user and pwd:
-                    s.login(user, pwd)
-                s.send_message(msg)
-
-   
-    return await asyncio.to_thread(_send)
 
 
 # this function hashes tokens
@@ -1040,5 +1046,33 @@ async def dashboard_games(
                 "total": total,
                 "has_next": has_next,
             }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+@app.post("/report", response_model=ReportRead, status_code=201)
+async def create_report(report: ReportCreate):
+    """
+    Create a new report entry (SCRUM-103)
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            query = '''
+                INSERT INTO public."Reports" (reporter_id, reported_user_id, report_game_id, reason, created_at)
+                VALUES ($1, $2, $3, $4, NOW())
+                RETURNING report_id, reporter_id, reported_user_id, report_game_id, reason, created_at
+            '''
+            row = await connection.fetchrow(
+                query,
+                report.reporter_id,
+                report.reported_user_id,
+                report.report_game_id,
+                report.reason
+            )
+            if not row:
+                raise HTTPException(status_code=500, detail="Failed to create report")
+            return ReportRead(**dict(row))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
