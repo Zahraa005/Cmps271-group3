@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isLoadingForgot, setIsLoadingForgot] = useState(false);
   const [toast, setToast] = useState(null);
   const [errors, setErrors] = useState({});
   
@@ -77,8 +78,38 @@ export default function LoginPage() {
     }
   };
 
-  const handleForgotPassword = () => {
-    setToast("Password reset link sent to your email!");
+  const handleForgotPassword = async () => {
+    // Require a valid email first
+    if (!emailOk) {
+      setToast("Enter a valid email first.");
+      return;
+    }
+    try {
+      setIsLoadingForgot(true);
+      // Use Vite env var with sensible local fallback
+      const BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      const res = await fetch(`${BASE}/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setToast("If that email exists, a reset link was sent.");
+        // Optional: log preview for dev
+        if (data.preview_html) {
+          // eslint-disable-next-line no-console
+          console.log("[DEV] reset email preview:", data.preview_html);
+        }
+      } else {
+        setToast(data?.detail || "Could not send reset email.");
+      }
+    } catch (err) {
+      console.error("forgot-password error", err);
+      setToast("Network error. Try again.");
+    } finally {
+      setIsLoadingForgot(false);
+    }
   };
 
   const togglePasswordVisibility = () => {
@@ -243,10 +274,11 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={handleForgotPassword}
-              className="flex items-center gap-1 text-sm text-violet-600 hover:text-violet-500 dark:text-violet-400 dark:hover:text-violet-300 transition-colors font-medium"
-              disabled={loading}
+              className="flex items-center gap-1 text-sm text-violet-600 hover:text-violet-500 dark:text-violet-400 dark:hover:text-violet-300 transition-colors font-medium disabled:opacity-60"
+              disabled={loading || isLoadingForgot}
+              aria-busy={isLoadingForgot}
             >
-              <span>Forgot password?</span>
+              <span>{isLoadingForgot ? "Sending…" : "Forgot password?"}</span>
             </button>
           </div>
 
