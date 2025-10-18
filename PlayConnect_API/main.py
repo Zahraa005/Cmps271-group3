@@ -1,8 +1,9 @@
 from typing import Union, List
 import asyncpg
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
+from dotenv import load_dotenv
 
 from PlayConnect_API.schemas.Users import UserRead, UserCreate
 from PlayConnect_API.Database import connect_to_db, disconnect_db
@@ -21,17 +22,18 @@ from PlayConnect_API.schemas.Game_participants import GameParticipantJoin, GameP
 from PlayConnect_API.schemas.Waitlist import WaitlistRead  
 from PlayConnect_API.schemas.report import ReportCreate, ReportRead
 
+from PlayConnect_API.services.mailer import render_template, send_email
+
 
 from datetime import datetime, timezone, timedelta
 import os, secrets, hashlib
-import smtplib, ssl, asyncio
-import certifi
-from email.message import EmailMessage
 import jwt
 
 
 
 app = FastAPI()
+
+load_dotenv(dotenv_path=".env")
 
 
 app.add_middleware(
@@ -41,55 +43,6 @@ app.add_middleware(
     allow_methods=["*"],  
     allow_headers=["*"],  
 )
-
-# function to send reset email
-from email.message import EmailMessage
-from pathlib import Path
-import os
-import smtplib
-import ssl
-
-
-async def send_reset_email(to_email: str, reset_url: str, first_name: str = "user"):
-    """
-    Sends a styled password reset email using the HTML template in templates/emails/reset_password.html
-    """
-
-    # Load the HTML file
-    template_path = Path(__file__).parent / "templates" / "emails" / "reset_password.html"
-    html_content = template_path.read_text(encoding="utf-8")
-
-    # Replace placeholders
-    html_content = (
-        html_content.replace("{{first_name}}", first_name)
-                    .replace("{{reset_url}}", reset_url)
-    )
-
-    # Fallback plain text
-    plain_text = f"Hi {first_name}, click here to reset your password: {reset_url}"
-
-    # Build the message
-    msg = EmailMessage()
-    msg["From"] = os.getenv("MAIL_FROM", "no-reply@playconnect.com")
-    msg["To"] = to_email
-    msg["Subject"] = "PlayConnect Password Reset"
-    msg.set_content(plain_text)
-    msg.add_alternative(html_content, subtype="html")
-
-    # Connect to the SMTP server
-    smtp_server = os.getenv("MAIL_SERVER", "smtp.gmail.com")
-    smtp_port = int(os.getenv("MAIL_PORT", 465))
-    smtp_user = os.getenv("MAIL_USERNAME")
-    smtp_pass = os.getenv("MAIL_PASSWORD")
-
-    context = ssl.create_default_context()
-    try:
-        with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context) as server:
-            server.login(smtp_user, smtp_pass)
-            server.send_message(msg)
-        print(f"✅ Reset email sent successfully to {to_email}")
-    except Exception as e:
-        print(f"❌ Failed to send reset email: {e}")
 
 
 
@@ -246,14 +199,15 @@ async def leave_game_participant(payload: GameParticipantLeave):
 
 @app.post("/forgot-password", status_code=202)
 async def forgot_password(payload: ForgotPasswordRequestCreate):
-   
     ttl_minutes = int(os.getenv("RESET_TOKEN_TTL_MINUTES", "30"))
-    app_url = os.getenv("APP_URL", "http://localhost:5173")
+    app_url = os.getenv("APP_URL") or os.getenv("FRONTEND_URL", "http://localhost:5173")
+    preview_html = None
+    reset_url = None
 
     try:
         async with Database.pool.acquire() as connection:
             user = await connection.fetchrow(
-                'SELECT user_id, email FROM public."Users" WHERE LOWER(email) = LOWER($1) LIMIT 1',
+                'SELECT user_id, email, first_name FROM public."Users" WHERE LOWER(email) = LOWER($1) LIMIT 1',
                 payload.email,
             )
 
@@ -270,20 +224,48 @@ async def forgot_password(payload: ForgotPasswordRequestCreate):
                 )
 
                 reset_url = f"{app_url}/reset-password?token={raw_token}"
+                # Render HTML template and send via central mailer
+                first_name = user.get("first_name") or user.get("email", "").split("@")[0]
+                html = render_template(
+                    "PlayConnect_API/templates/emails/reset_password.html",
+                    {"first_name": first_name, "reset_url": reset_url}
+                )
                 try:
-                    await send_reset_email(user["email"], reset_url)
+                    await send_email(user["email"], "Reset Your Password", html)
                     if os.getenv("ENV", "dev").lower() != "production":
                         print(f"[DEV ONLY] Email sent to {user['email']}")
                 except Exception as send_err:
-                    #added logs to find problem its been 3 hours :PPPP
-                    print(f"[DEV ONLY] Email send failed: {repr(send_err)}")  
+                    print(f"[DEV ONLY] Email send failed: {repr(send_err)}")
                 if os.getenv("ENV", "dev").lower() != "production":
                     print(f"[DEV ONLY] Password reset link for {user['email']}: {reset_url}")
+                preview_html = html
 
+        dev_mode = os.getenv("ENV", "dev").lower() != "production"
+        if dev_mode and reset_url and preview_html:
+            return {
+                "message": "If an account exists for that email, you will receive a reset link shortly.",
+                "reset_url": reset_url,
+                "preview_html": preview_html,
+            }
         return {"message": "If an account exists for that email, you will receive a reset link shortly."}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Development-only endpoint to preview reset email HTML
+@app.get("/dev/preview/reset-email")
+async def preview_reset_email(email: str = "test@example.com", token: str = "demo-token"):
+    # Only serve in non-production environments
+    if os.getenv("ENV", "dev").lower() == "production":
+        raise HTTPException(status_code=404, detail="Not available")
+    html = render_template(
+        "PlayConnect_API/templates/emails/reset_password.html",
+        {
+            "first_name": email.split("@")[0],
+            "reset_url": f"{os.getenv('FRONTEND_URL', 'http://localhost:5173')}/reset-password?token={token}",
+        },
+    )
+    return Response(content=html, media_type="text/html")
 
 @app.on_event("startup")
 async def startup():
