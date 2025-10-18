@@ -1,3 +1,4 @@
+# SCRUM-109: Report schema implemented by Mazen Hachem
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
