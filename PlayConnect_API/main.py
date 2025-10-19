@@ -1058,3 +1058,45 @@ async def create_report(report: ReportCreate):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/reports", response_model=List[ReportRead])
+async def get_reports():
+    """
+    Retrieve all report entries (SCRUM-104)
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            query = '''
+                SELECT report_id, reporter_id, reported_user_id, report_game_id, reason, created_at
+                FROM public."Reports"
+                ORDER BY created_at DESC
+            '''
+            rows = await connection.fetch(query)
+            reports = [ReportRead(**dict(row)) for row in rows]
+            return reports
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/reports/{report_id}", response_model=ReportRead)
+async def get_report_by_id(report_id: int):
+    """
+    Retrieve a specific report entry by ID
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            query = '''
+                SELECT report_id, reporter_id, reported_user_id, report_game_id, reason, created_at
+                FROM public."Reports"
+                WHERE report_id = $1
+            '''
+            row = await connection.fetchrow(query, report_id)
+            if not row:
+                raise HTTPException(status_code=404, detail="Report not found")
+            return ReportRead(**dict(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
