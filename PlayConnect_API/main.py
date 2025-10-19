@@ -1129,3 +1129,32 @@ async def create_notification(notification: NotificationCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# -------------------------------
+# Friends: delete friendship (symmetric)
+# -------------------------------
+@app.delete("/friends", status_code=200)
+async def delete_friend(user_id: int, friend_id: int):
+    """
+    Hard-delete a friendship in BOTH directions:
+      (user_id -> friend_id) and (friend_id -> user_id).
+    Returns the number of rows removed (0, 1, or 2).
+    """
+    if user_id == friend_id:
+        raise HTTPException(status_code=400, detail="user_id and friend_id must be different")
+
+    try:
+        async with Database.pool.acquire() as connection:
+            result = await connection.execute(
+                'DELETE FROM public."Friends"\n'
+                'WHERE (user_id = $1 AND friend_id = $2)\n'
+                '   OR (user_id = $2 AND friend_id = $1)',
+                user_id,
+                friend_id,
+            )
+            # asyncpg returns e.g. "DELETE 0", "DELETE 1", "DELETE 2"
+            deleted = int(result.split()[-1]) if result else 0
+            return {"deleted": deleted}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
