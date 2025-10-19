@@ -22,6 +22,7 @@ from PlayConnect_API.schemas.Game_participants import GameParticipantJoin, GameP
 from PlayConnect_API.schemas.Waitlist import WaitlistRead  
 from PlayConnect_API.schemas.report import ReportCreate, ReportRead, ReportUpdate
 from PlayConnect_API.schemas.Notifications import NotificationCreate, NotificationRead
+from PlayConnect_API.schemas.Friends import FriendCreate, FriendRead
 
 from PlayConnect_API.services.mailer import render_template, send_email
 
@@ -1286,6 +1287,59 @@ async def get_notification_by_id(notification_id: int):
             if not row:
                 raise HTTPException(status_code=404, detail="Notification not found")
             return NotificationRead(**dict(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# -------------------------------
+# Friends: create friendship (symmetric)
+# -------------------------------
+@app.post("/friends", response_model=FriendRead, status_code=201)
+async def create_friend(friend: FriendCreate):
+    """
+    Create a friendship in BOTH directions:
+      (user_id -> friend_id) and (friend_id -> user_id).
+    Prevent self-friendship and duplicates.
+    """
+    if friend.user_id == friend.friend_id:
+        raise HTTPException(status_code=400, detail="user_id and friend_id must be different")
+
+    try:
+        async with Database.pool.acquire() as connection:
+            # Check if either direction already exists
+            existing = await connection.fetchrow(
+                'SELECT user_id, friend_id, status FROM public."Friends"\n'
+                'WHERE (user_id = $1 AND friend_id = $2)\n'
+                '   OR (user_id = $2 AND friend_id = $1)\n'
+                'LIMIT 1',
+                friend.user_id,
+                friend.friend_id,
+            )
+            if existing:
+                raise HTTPException(status_code=409, detail="Friendship already exists")
+
+            async with connection.transaction():
+                # Insert primary direction and return it
+                created_row = await connection.fetchrow(
+                    'INSERT INTO public."Friends" (user_id, friend_id, status, created_at)\n'
+                    'VALUES ($1, $2, $3, NOW())\n'
+                    'RETURNING user_id, friend_id, status, created_at',
+                    friend.user_id,
+                    friend.friend_id,
+                    friend.status,
+                )
+
+                # Insert reverse direction
+                await connection.execute(
+                    'INSERT INTO public."Friends" (user_id, friend_id, status, created_at)\n'
+                    'VALUES ($1, $2, $3, NOW())',
+                    friend.friend_id,
+                    friend.user_id,
+                    friend.status,
+                )
+
+            return FriendRead(**dict(created_row))
     except HTTPException:
         raise
     except Exception as e:
