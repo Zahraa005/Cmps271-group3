@@ -20,7 +20,7 @@ from PlayConnect_API.schemas.sport import SportRead, SportCreate
 from PlayConnect_API.schemas.Profile import ProfileCreate, ProfileRead
 from PlayConnect_API.schemas.Game_participants import GameParticipantJoin, GameParticipantLeave
 from PlayConnect_API.schemas.Waitlist import WaitlistRead  
-from PlayConnect_API.schemas.report import ReportCreate, ReportRead
+from PlayConnect_API.schemas.report import ReportCreate, ReportRead, ReportUpdate
 from PlayConnect_API.schemas.Notifications import NotificationCreate, NotificationRead
 
 from PlayConnect_API.services.mailer import render_template, send_email
@@ -1158,6 +1158,68 @@ async def get_report_by_id(report_id: int):
             row = await connection.fetchrow(query, report_id)
             if not row:
                 raise HTTPException(status_code=404, detail="Report not found")
+            return ReportRead(**dict(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/reports/{report_id}", response_model=ReportRead)
+async def update_report(report_id: int, report_update: ReportUpdate):
+    """
+    Update a specific report entry by ID
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            # Check if report exists
+            existing = await connection.fetchrow(
+                'SELECT report_id FROM public."Reports" WHERE report_id = $1 LIMIT 1',
+                report_id
+            )
+            if not existing:
+                raise HTTPException(status_code=404, detail="Report not found")
+
+            # Build dynamic update query based on provided fields
+            update_fields = []
+            values = []
+            param_count = 1
+
+            if report_update.reporter_id is not None:
+                update_fields.append(f"reporter_id = ${param_count}")
+                values.append(report_update.reporter_id)
+                param_count += 1
+
+            if report_update.reported_user_id is not None:
+                update_fields.append(f"reported_user_id = ${param_count}")
+                values.append(report_update.reported_user_id)
+                param_count += 1
+
+            if report_update.report_game_id is not None:
+                update_fields.append(f"report_game_id = ${param_count}")
+                values.append(report_update.report_game_id)
+                param_count += 1
+
+            if report_update.reason is not None:
+                update_fields.append(f"reason = ${param_count}")
+                values.append(report_update.reason)
+                param_count += 1
+
+            if not update_fields:
+                raise HTTPException(status_code=400, detail="No fields provided for update")
+
+            # Add report_id as the last parameter
+            values.append(report_id)
+
+            query = f'''
+                UPDATE public."Reports" 
+                SET {', '.join(update_fields)}
+                WHERE report_id = ${param_count}
+                RETURNING report_id, reporter_id, reported_user_id, report_game_id, reason, created_at
+            '''
+
+            row = await connection.fetchrow(query, *values)
+            if not row:
+                raise HTTPException(status_code=500, detail="Failed to update report")
             return ReportRead(**dict(row))
     except HTTPException:
         raise

@@ -3,13 +3,19 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 
-__all__ = ["ReportCreate", "ReportRead"]
+__all__ = ["ReportCreate", "ReportRead", "ReportUpdate"]
 
 class ReportCreate(BaseModel):
     reporter_id: int
     reported_user_id: int
     report_game_id: int
     reason: str
+
+class ReportUpdate(BaseModel):
+    reporter_id: Optional[int] = None
+    reported_user_id: Optional[int] = None
+    report_game_id: Optional[int] = None
+    reason: Optional[str] = None
 
 class ReportRead(BaseModel):
     report_id: int
