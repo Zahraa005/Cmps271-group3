@@ -25,3 +25,15 @@ build/
 # Secrets
 .env
 PlayConnect_API/.env
+
+# Node.js / React
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+.env.local
+
+# Vite / React builds
+dist/
+coverage/

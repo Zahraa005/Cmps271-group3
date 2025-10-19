@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import MatchHistoryPanel from "../components/MatchHistoryPanel";
 
 function classNames(...xs) {
   return xs.filter(Boolean).join(" ");
@@ -618,6 +619,12 @@ useEffect(() => {
             <div className="flex-grow max-w-xs h-[1px] bg-gradient-to-r from-transparent via-neutral-700 to-transparent"></div>
           </div>
         </header>
+
+        {user && (
+          <div className="mt-10">
+            <MatchHistoryPanel userId={user.user_id} />
+          </div>
+        )}
 
         {/* Create Game Form */}
         {showCreateForm && (
