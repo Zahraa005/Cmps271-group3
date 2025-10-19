@@ -17,7 +17,7 @@ from PlayConnect_API.schemas.Game_Instance import GameInstanceCreate, GameInstan
 from PlayConnect_API.schemas.ForgotPasswordRequest import ForgotPasswordRequestCreate
 from PlayConnect_API.schemas.Login import LoginRequest, TokenResponse
 from PlayConnect_API.schemas.sport import SportRead, SportCreate
-from PlayConnect_API.schemas.Profile import ProfileCreate
+from PlayConnect_API.schemas.Profile import ProfileCreate, ProfileRead
 from PlayConnect_API.schemas.Game_participants import GameParticipantJoin, GameParticipantLeave
 from PlayConnect_API.schemas.Waitlist import WaitlistRead  
 from PlayConnect_API.schemas.report import ReportCreate, ReportRead
@@ -365,6 +365,69 @@ async def create_profile(profile: ProfileCreate, user_id: int):
                 user_id,
             )
             return UserRead(**dict(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/profile/{user_id}", response_model=ProfileRead)
+async def get_profile(user_id: int):
+    """Get user profile by user_id"""
+    try:
+        async with Database.pool.acquire() as connection:
+            row = await connection.fetchrow(
+                '''
+                SELECT user_id, first_name, last_name, age, favorite_sport, bio, avatar_url, role
+                FROM public."Users"
+                WHERE user_id = $1
+                ''',
+                user_id
+            )
+            if not row:
+                raise HTTPException(status_code=404, detail="Profile not found")
+            return ProfileRead(**dict(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/profile/{user_id}", response_model=ProfileRead)
+async def update_profile(user_id: int, profile: ProfileCreate):
+    """Update user profile by user_id"""
+    try:
+        async with Database.pool.acquire() as connection:
+            # Check if user exists
+            existing = await connection.fetchrow(
+                'SELECT user_id FROM public."Users" WHERE user_id = $1 LIMIT 1',
+                user_id
+            )
+            if not existing:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            # Update user profile fields
+            row = await connection.fetchrow(
+                '''
+                UPDATE public."Users"
+                SET first_name = $1,
+                    last_name = $2,
+                    age = $3,
+                    favorite_sport = $4,
+                    bio = $5,
+                    avatar_url = $6,
+                    role = $7
+                WHERE user_id = $8
+                RETURNING user_id, first_name, last_name, age, favorite_sport, bio, avatar_url, role
+                ''',
+                profile.first_name,
+                profile.last_name,
+                profile.age,
+                profile.favorite_sport,
+                profile.bio,
+                profile.avatar_url,
+                profile.role,
+                user_id,
+            )
+            return ProfileRead(**dict(row))
     except HTTPException:
         raise
     except Exception as e:

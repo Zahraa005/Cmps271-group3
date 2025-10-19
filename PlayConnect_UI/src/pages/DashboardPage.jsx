@@ -15,6 +15,15 @@ export default function DashboardPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   // Edit state
   const [editingGame, setEditingGame] = useState(null); // holds the game being edited
+  // Profile modal state
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileData, setProfileData] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editProfileData, setEditProfileData] = useState({});
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profilePictureFile, setProfilePictureFile] = useState(null);
+  const [profilePicturePreview, setProfilePicturePreview] = useState(null);
 
   // Waitlist state
   const [waitlists, setWaitlists] = useState({});           // { [gameId]: [{user_id, name, joined_at}, ...] }
@@ -167,6 +176,125 @@ useEffect(() => {
 
   // ===== Waitlist helpers =====
   const API_BASE = import.meta.env?.VITE_API_URL || "http://127.0.0.1:8000";
+
+  // ===== Profile helpers =====
+  const fetchProfileData = async () => {
+    if (!user?.user_id) return;
+    
+    setProfileLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/profile/${user.user_id}`);
+      if (response.ok) {
+        const profile = await response.json();
+        setProfileData(profile);
+      } else {
+        setToast('Failed to load profile data');
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      setToast('Failed to load profile data');
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const handleProfileClick = () => {
+    setShowProfileModal(true);
+    if (!profileData) {
+      fetchProfileData();
+    }
+  };
+
+  const handleEditProfile = () => {
+    if (profileData) {
+      setEditProfileData({
+        first_name: profileData.first_name || '',
+        last_name: profileData.last_name || '',
+        age: profileData.age || '',
+        bio: profileData.bio || '',
+        favorite_sport: profileData.favorite_sport || '',
+        role: profileData.role || 'player'
+      });
+      // Reset profile picture state
+      setProfilePictureFile(null);
+      setProfilePicturePreview(null);
+      setIsEditingProfile(true);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user?.user_id) return;
+    
+    setProfileSaving(true);
+    try {
+      // Prepare profile data with avatar_url
+      const profileDataToSave = { ...editProfileData };
+      
+      // If a new profile picture was uploaded, convert it to base64
+      if (profilePictureFile) {
+        const base64 = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.readAsDataURL(profilePictureFile);
+        });
+        profileDataToSave.avatar_url = base64;
+      }
+
+      const response = await fetch(`${API_BASE}/profile/${user.user_id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(profileDataToSave),
+      });
+
+      if (response.ok) {
+        const updatedProfile = await response.json();
+        setProfileData(updatedProfile);
+        setIsEditingProfile(false);
+        setProfilePictureFile(null);
+        setProfilePicturePreview(null);
+        setToast('Profile updated successfully!');
+      } else {
+        const errorData = await response.json();
+        setToast(`Failed to update profile: ${errorData.detail || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      setToast('Failed to update profile');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingProfile(false);
+    setEditProfileData({});
+    setProfilePictureFile(null);
+    setProfilePicturePreview(null);
+  };
+
+  const handleEditInputChange = (field, value) => {
+    setEditProfileData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleProfilePictureChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    
+    setProfilePictureFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setProfilePicturePreview(ev.target.result);
+    reader.readAsDataURL(file);
+  };
+
+  const removeProfilePicture = () => {
+    setProfilePictureFile(null);
+    setProfilePicturePreview(null);
+  };
 
   // ===== Participants helpers =====
   async function fetchParticipantsInfo(gameId) {
@@ -573,8 +701,9 @@ useEffect(() => {
 
               {/* Profile Circle */}
               <div
+                onClick={handleProfileClick}
                 title={user?.first_name ? `${user.first_name} ${user.last_name || ""}` : user?.email}
-                className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center text-white font-semibold text-sm hover:bg-neutral-700 cursor-default"
+                className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center text-white font-semibold text-sm hover:bg-neutral-700 cursor-pointer transition-colors"
               >
                 {user
                   ? user.first_name
@@ -1380,6 +1509,270 @@ useEffect(() => {
         </div>
       )}
 
+
+      {/* Profile Modal */}
+      {showProfileModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm overflow-y-auto">
+          <div className="relative bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl p-8 max-w-2xl w-full mx-4 my-10">
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={() => setShowProfileModal(false)}
+              className="absolute top-6 right-4 text-neutral-400 hover:text-white hover:scale-110 transition-transform text-2xl leading-none"
+              aria-label="Close"
+            >
+              ×
+            </button>
+
+            {/* Title */}
+            <div className="mb-6">
+              <h2 className="text-2xl font-semibold text-white">Profile Details</h2>
+              <p className="text-sm text-neutral-400 mt-1">
+                View and manage your profile information.
+              </p>
+            </div>
+
+            {/* Profile Content */}
+            {profileLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="flex items-center gap-2 text-neutral-400">
+                  <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  </svg>
+                  Loading profile...
+                </div>
+              </div>
+            ) : profileData ? (
+              <div className="space-y-6">
+                {/* Profile Picture */}
+                <div className="flex items-center gap-4">
+                  <div className="w-20 h-20 rounded-full bg-neutral-800 flex items-center justify-center text-white font-semibold text-2xl overflow-hidden">
+                    {profilePicturePreview ? (
+                      <img 
+                        src={profilePicturePreview} 
+                        alt="Profile Preview" 
+                        className="w-full h-full object-cover rounded-full"
+                      />
+                    ) : profileData?.avatar_url ? (
+                      <img 
+                        src={profileData.avatar_url} 
+                        alt="Profile" 
+                        className="w-full h-full object-cover rounded-full"
+                      />
+                    ) : (
+                      (isEditingProfile ? editProfileData.first_name : profileData.first_name) 
+                        ? (isEditingProfile ? editProfileData.first_name : profileData.first_name).charAt(0).toUpperCase() 
+                        : "?"
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-xl font-semibold text-white">
+                      {isEditingProfile ? (
+                        <input
+                          type="text"
+                          value={editProfileData.first_name || ''}
+                          onChange={(e) => handleEditInputChange('first_name', e.target.value)}
+                          placeholder="First Name"
+                          className="bg-transparent border-b border-neutral-600 text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
+                        />
+                      ) : (
+                        profileData.first_name && profileData.last_name 
+                          ? `${profileData.first_name} ${profileData.last_name}`
+                          : "User"
+                      )}
+                    </h3>
+                    {isEditingProfile && (
+                      <div className="mt-2 flex gap-2">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleProfilePictureChange}
+                          className="hidden"
+                          id="profile-picture-upload"
+                        />
+                        <label
+                          htmlFor="profile-picture-upload"
+                          className="px-3 py-1 bg-violet-500 hover:bg-violet-400 text-white rounded text-sm cursor-pointer transition-colors"
+                        >
+                          {profilePictureFile ? "Change Photo" : "Upload Photo"}
+                        </label>
+                        {profilePictureFile && (
+                          <button
+                            onClick={removeProfilePicture}
+                            className="px-3 py-1 bg-neutral-700 hover:bg-neutral-600 text-white rounded text-sm transition-colors"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Profile Details */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-neutral-300 mb-1">First Name</label>
+                    {isEditingProfile ? (
+                      <input
+                        type="text"
+                        value={editProfileData.first_name || ''}
+                        onChange={(e) => handleEditInputChange('first_name', e.target.value)}
+                        className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                        placeholder="Enter first name"
+                      />
+                    ) : (
+                      <div className="p-3 bg-neutral-800 rounded-lg text-white">
+                        {profileData.first_name || 'Not set'}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm text-neutral-300 mb-1">Last Name</label>
+                    {isEditingProfile ? (
+                      <input
+                        type="text"
+                        value={editProfileData.last_name || ''}
+                        onChange={(e) => handleEditInputChange('last_name', e.target.value)}
+                        className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                        placeholder="Enter last name"
+                      />
+                    ) : (
+                      <div className="p-3 bg-neutral-800 rounded-lg text-white">
+                        {profileData.last_name || 'Not set'}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm text-neutral-300 mb-1">Age</label>
+                    {isEditingProfile ? (
+                      <input
+                        type="number"
+                        value={editProfileData.age || ''}
+                        onChange={(e) => handleEditInputChange('age', parseInt(e.target.value) || '')}
+                        className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                        placeholder="Enter age"
+                        min="1"
+                        max="120"
+                      />
+                    ) : (
+                      <div className="p-3 bg-neutral-800 rounded-lg text-white">
+                        {profileData.age || 'Not set'}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm text-neutral-300 mb-1">Role</label>
+                    {isEditingProfile ? (
+                      <select
+                        value={editProfileData.role || 'player'}
+                        onChange={(e) => handleEditInputChange('role', e.target.value)}
+                        className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      >
+                        <option value="player">Player</option>
+                        <option value="coach">Coach</option>
+                        <option value="organizer">Organizer</option>
+                      </select>
+                    ) : (
+                      <div className="p-3 bg-neutral-800 rounded-lg text-white">
+                        {profileData.role || 'Player'}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm text-neutral-300 mb-1">Favorite Sport</label>
+                    {isEditingProfile ? (
+                      <select
+                        value={editProfileData.favorite_sport || ''}
+                        onChange={(e) => handleEditInputChange('favorite_sport', e.target.value)}
+                        className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      >
+                        <option value="">Select a sport</option>
+                        {sports.map((sport) => (
+                          <option key={sport.sport_id} value={sport.name}>
+                            {sport.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="p-3 bg-neutral-800 rounded-lg text-white">
+                        {profileData.favorite_sport || 'Not set'}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Bio */}
+                <div>
+                  <label className="block text-sm text-neutral-300 mb-1">Bio</label>
+                  {isEditingProfile ? (
+                    <textarea
+                      value={editProfileData.bio || ''}
+                      onChange={(e) => handleEditInputChange('bio', e.target.value)}
+                      className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
+                      placeholder="Tell others about you..."
+                      rows="3"
+                      maxLength="160"
+                    />
+                  ) : (
+                    <div className="p-3 bg-neutral-800 rounded-lg text-white">
+                      {profileData.bio || 'No bio provided'}
+                    </div>
+                  )}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-4">
+                  {isEditingProfile ? (
+                    <>
+                      <button
+                        onClick={handleSaveProfile}
+                        disabled={profileSaving}
+                        className="flex-1 py-2 bg-violet-500 hover:bg-violet-400 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {profileSaving ? 'Saving...' : 'Save Changes'}
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        disabled={profileSaving}
+                        className="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={handleEditProfile}
+                        className="flex-1 py-2 bg-violet-500 hover:bg-violet-400 text-white rounded-lg font-medium transition-colors"
+                      >
+                        Edit Profile
+                      </button>
+                      <button
+                        onClick={() => setShowProfileModal(false)}
+                        className="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium transition-colors"
+                      >
+                        Close
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-neutral-400">Failed to load profile data</p>
+                <button
+                  onClick={fetchProfileData}
+                  className="mt-4 px-4 py-2 bg-violet-500 hover:bg-violet-400 text-white rounded-lg transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (
