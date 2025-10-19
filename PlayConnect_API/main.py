@@ -21,6 +21,7 @@ from PlayConnect_API.schemas.Profile import ProfileCreate
 from PlayConnect_API.schemas.Game_participants import GameParticipantJoin, GameParticipantLeave
 from PlayConnect_API.schemas.Waitlist import WaitlistRead  
 from PlayConnect_API.schemas.report import ReportCreate, ReportRead
+from PlayConnect_API.schemas.Notifications import NotificationCreate, NotificationRead
 
 from PlayConnect_API.services.mailer import render_template, send_email
 
