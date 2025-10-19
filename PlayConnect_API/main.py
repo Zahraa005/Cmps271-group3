@@ -1079,7 +1079,6 @@ async def get_reports():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.get("/reports/{report_id}", response_model=ReportRead)
 async def get_report_by_id(report_id: int):
     """
@@ -1100,3 +1099,32 @@ async def get_report_by_id(report_id: int):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/notifications", response_model=NotificationRead, status_code=201)
+async def create_notification(notification: NotificationCreate):
+    """
+    Create a new notification entry (SCRUM-106)
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            query = '''
+                INSERT INTO public."Notifications" (user_id, message, type, metadata, is_read, created_at)
+                VALUES ($1, $2, $3, $4, $5, NOW())
+                RETURNING notification_id, user_id, message, type, metadata, is_read, created_at
+            '''
+            row = await connection.fetchrow(
+                query,
+                notification.user_id,
+                notification.message,
+                notification.type,
+                notification.metadata,
+                notification.is_read
+            )
+            if not row:
+                raise HTTPException(status_code=500, detail="Failed to create notification")
+            return NotificationRead(**dict(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
