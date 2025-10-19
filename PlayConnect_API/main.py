@@ -1179,7 +1179,6 @@ async def update_report(report_id: int, report_update: ReportUpdate):
             if not existing:
                 raise HTTPException(status_code=404, detail="Report not found")
 
-            # Build dynamic update query based on provided fields
             update_fields = []
             values = []
             param_count = 1
@@ -1191,9 +1190,9 @@ async def update_report(report_id: int, report_update: ReportUpdate):
 
             if report_update.reported_user_id is not None:
                 update_fields.append(f"reported_user_id = ${param_count}")
-                values.append(report_update.reported_user_id)
-                param_count += 1
-
+                values.append(report_update.reported_user_id)                  #anoying little shit made me make error reports to make me know what was wrong
+                param_count += 1                                               #also its weird, cuz i made it so that it updates only the changed fields
+                                                                               #cuz its really annoying to update the whole report when only one field is changed
             if report_update.report_game_id is not None:
                 update_fields.append(f"report_game_id = ${param_count}")
                 values.append(report_update.report_game_id)
@@ -1207,7 +1206,6 @@ async def update_report(report_id: int, report_update: ReportUpdate):
             if not update_fields:
                 raise HTTPException(status_code=400, detail="No fields provided for update")
 
-            # Add report_id as the last parameter
             values.append(report_id)
 
             query = f'''
@@ -1248,6 +1246,45 @@ async def create_notification(notification: NotificationCreate):
             )
             if not row:
                 raise HTTPException(status_code=500, detail="Failed to create notification")
+            return NotificationRead(**dict(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/notifications", response_model=List[NotificationRead])
+async def get_notifications():
+    """
+    Retrieve all notification entries (SCRUM-107)
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            query = '''
+                SELECT notification_id, user_id, message, type, metadata, is_read, created_at
+                FROM public."Notifications"
+                ORDER BY created_at DESC
+            '''
+            rows = await connection.fetch(query)
+            notifications = [NotificationRead(**dict(row)) for row in rows]
+            return notifications
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/notifications/{notification_id}", response_model=NotificationRead)
+async def get_notification_by_id(notification_id: int):
+    """
+    Retrieve a specific notification entry by ID
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            query = '''
+                SELECT notification_id, user_id, message, type, metadata, is_read, created_at
+                FROM public."Notifications"
+                WHERE notification_id = $1
+            '''
+            row = await connection.fetchrow(query, notification_id)
+            if not row:
+                raise HTTPException(status_code=404, detail="Notification not found")
             return NotificationRead(**dict(row))
     except HTTPException:
         raise
