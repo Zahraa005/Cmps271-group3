@@ -23,6 +23,7 @@ from PlayConnect_API.schemas.Waitlist import WaitlistRead
 from PlayConnect_API.schemas.report import ReportCreate, ReportRead, ReportUpdate
 from PlayConnect_API.schemas.Notifications import NotificationCreate, NotificationRead
 from PlayConnect_API.schemas.Friends import FriendCreate, FriendRead
+from PlayConnect_API.schemas.Match_Histories import MatchHistoryCreate, MatchHistoryRead
 
 from PlayConnect_API.services.mailer import render_template, send_email
 
