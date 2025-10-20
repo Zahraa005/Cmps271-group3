@@ -1375,4 +1375,48 @@ async def delete_friend(user_id: int, friend_id: int):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-// touch: Mon, Oct 20, 2025  6:21:18 PM
+
+@app.get("/match-histories", response_model=List[MatchHistoryRead])
+async def get_match_histories(
+    player_id: Union[int, None] = None,
+    opponent_id: Union[int, None] = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """
+    Retrieve match history records, optionally filtered by player_id/opponent_id.
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            query = """
+                SELECT match_id, player_id, opponent_id, score_player, score_opponent,
+                       result, duration_minutes, played_at
+                FROM public."Match_Histories"
+            """
+            conditions: list[str] = []
+            params: list[object] = []
+
+            if player_id is not None:
+                conditions.append(f"player_id = ${len(params) + 1}")
+                params.append(player_id)
+
+            if opponent_id is not None:
+                conditions.append(f"opponent_id = ${len(params) + 1}")
+                params.append(opponent_id)
+
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+
+            query += " ORDER BY played_at DESC"
+
+            # pagination placeholders must come AFTER existing params
+            limit_idx = len(params) + 1
+            offset_idx = len(params) + 2
+            query += f" LIMIT ${limit_idx} OFFSET ${offset_idx}"
+            params.extend([limit, offset])
+
+            rows = await connection.fetch(query, *params)
+            return [MatchHistoryRead(**dict(row)) for row in rows]
+
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to fetch match histories")
