@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { Link } from "react-router-dom";
+
 
 export default function HomePage() {
   const videoRef = useRef(null);
@@ -49,7 +51,12 @@ export default function HomePage() {
           <a href="/" className="hover:text-indigo-400 transition-colors duration-300">Home</a>
           <a href="/coaches" className="hover:text-indigo-400 transition-colors duration-300">Coaches</a>
           <a href="/games" onClick={goToGames} className="hover:text-indigo-400 transition-colors duration-300">Games</a>
-          <a href="/community" className="hover:text-indigo-400 transition-colors duration-300">Community</a>
+          <Link
+            to="/friends"
+            className="hover:text-indigo-400 transition-colors duration-300"
+          >
+            Community
+          </Link>
         </div>
         <div className="flex gap-4">
           <a href="/login" className="px-5 py-2 rounded-lg border-2 border-white text-white hover:bg-white hover:text-neutral-900 transition-all duration-300">

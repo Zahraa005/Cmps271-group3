@@ -6,6 +6,7 @@ import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import RegistrationPage from "./pages/RegistrationPage"
 import DashboardPage from "./pages/DashboardPage"
+import FriendsPage from "./pages/FriendsPage";
 import { AuthProvider } from "./contexts/AuthContext"
 
 
@@ -36,6 +37,8 @@ function App() {
 
           {/* dashboard */}
           <Route path="/dashboard" element={<DashboardPage />} />
+           {/* Friends Page route */}
+          <Route path="/friends" element={<FriendsPage />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
