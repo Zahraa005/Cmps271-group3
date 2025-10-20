@@ -1420,3 +1420,56 @@ async def get_match_histories(
 
     except Exception:
         raise HTTPException(status_code=500, detail="Failed to fetch match histories")
+    
+@app.get("/friends", response_model=List[FriendRead])
+async def get_friends(
+    user_id: Union[int, None] = None,
+    friend_id: Union[int, None] = None,
+    status: Union[str, None] = None,   # optional filter (e.g., "accepted")
+    limit: int = 50,
+    offset: int = 0,
+):
+    """
+    Retrieve friendships, optionally filtered by user_id, friend_id, and/or status.
+    Results are ordered by most recent first and paginated.
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            # base query
+            query = """
+                SELECT id, user_id, friend_id, status, created_at
+                FROM public."Friends"
+            """
+            conditions: list[str] = []
+            params: list[object] = []
+
+            if user_id is not None:
+                conditions.append(f"user_id = ${len(params) + 1}")
+                params.append(user_id)
+
+            if friend_id is not None:
+                conditions.append(f"friend_id = ${len(params) + 1}")
+                params.append(friend_id)
+
+            if status is not None:
+                conditions.append(f"status = ${len(params) + 1}")
+                params.append(status)
+
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+
+            query += " ORDER BY created_at DESC"
+
+            # pagination placeholders come after existing params
+            limit_idx = len(params) + 1
+            offset_idx = len(params) + 2
+            query += f" LIMIT ${limit_idx} OFFSET ${offset_idx}"
+            params.extend([limit, offset])
+
+            rows = await connection.fetch(query, *params)
+            return [FriendRead(**dict(row)) for row in rows]
+
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to fetch friends")
+
+
