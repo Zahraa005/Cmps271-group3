@@ -14,7 +14,7 @@ from PlayConnect_API.schemas.registration import RegisterRequest
 from PlayConnect_API.schemas.Coaches import CoachRead, CoachCreate 
 from PlayConnect_API.schemas.User_stats import UserStatCreate, UserStatRead
 from PlayConnect_API.schemas.Game_Instance import GameInstanceCreate, GameInstanceResponse
-from PlayConnect_API.schemas.ForgotPasswordRequest import ForgotPasswordRequestCreate
+from PlayConnect_API.schemas.ForgotPasswordRequest import ForgotPasswordRequestCreate, ForgotPasswordRequestOut, ResetPasswordIn, ResetPasswordOut
 from PlayConnect_API.schemas.Login import LoginRequest, TokenResponse
 from PlayConnect_API.schemas.sport import SportRead, SportCreate
 from PlayConnect_API.schemas.Profile import ProfileCreate, ProfileRead
@@ -26,7 +26,7 @@ from PlayConnect_API.schemas.Friends import FriendCreate, FriendRead
 from PlayConnect_API.schemas.Match_Histories import MatchHistoryCreate, MatchHistoryRead
 
 from PlayConnect_API.services.mailer import render_template, send_email
-
+from PlayConnect_API.security_utils import gen_reset_token, hash_token, hash_password
 
 from datetime import datetime, timezone, timedelta
 import os, secrets, hashlib
@@ -1472,4 +1472,79 @@ async def get_friends(
     except Exception:
         raise HTTPException(status_code=500, detail="Failed to fetch friends")
 
+@app.post("/auth/forgot-password", response_model=ForgotPasswordRequestOut)
+async def create_forgot_password_request(payload: ForgotPasswordRequestCreate):
+    try:
+        async with Database.pool.acquire() as conn:
+            email = str(payload.email).lower().strip()
+            user = await conn.fetchrow(
+                'SELECT id, email FROM public."Users" WHERE email = $1',
+                email
+            )
+
+            now = datetime.now(timezone.utc)
+            expires_at = now + timedelta(minutes=30)
+
+            await conn.execute(
+                'INSERT INTO public."ForgotPasswordRequests"(email, created_at, expires_at, is_used) '
+                'VALUES ($1, $2, $3, $4)',
+                email, now, expires_at, False
+            )
+
+            if not user:
+                return ForgotPasswordRequestOut(message="If the email exists, a reset link was sent.", reset_token=None)
+
+            raw_token = gen_reset_token()
+            token_h = hash_token(raw_token)
+
+            await conn.execute(
+                'INSERT INTO public."Password_Reset_Tokens"(user_id, token_hash, expires_at, used_at, created_at) '
+                'VALUES ($1, $2, $3, $4, $5)',
+                user["id"], token_h, expires_at, None, now
+            )
+
+            return ForgotPasswordRequestOut(message="Reset link generated.", reset_token=raw_token)
+
+    except Exception:
+        raise HTTPException(status_code=500, detail="Could not create password reset request")
+
+
+@app.post("/auth/reset-password", response_model=ResetPasswordOut)
+async def reset_password(payload: ResetPasswordIn):
+    try:
+        async with Database.pool.acquire() as conn:
+            now = datetime.now(timezone.utc)
+            incoming_hash = hash_token(payload.token)
+
+            tok = await conn.fetchrow(
+                'SELECT id, user_id, expires_at, used_at '
+                'FROM public."Password_Reset_Tokens" '
+                'WHERE token_hash = $1 AND used_at IS NULL AND expires_at > $2 '
+                'ORDER BY id DESC LIMIT 1',
+                incoming_hash, now
+            )
+            if not tok:
+                raise HTTPException(status_code=400, detail="Invalid or expired token")
+
+            user_id = tok["user_id"]
+            u = await conn.fetchrow('SELECT id FROM public."Users" WHERE id = $1', user_id)
+            if not u:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            new_hash = hash_password(payload.new_password)
+            await conn.execute(
+                'UPDATE public."Users" SET password_hash = $1 WHERE id = $2',
+                new_hash, user_id
+            )
+
+            await conn.execute(
+                'UPDATE public."Password_Reset_Tokens" SET used_at = $1 WHERE id = $2',
+                now, tok["id"]
+            )
+
+            return ResetPasswordOut(message="Password has been reset.")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Could not reset password")
 
