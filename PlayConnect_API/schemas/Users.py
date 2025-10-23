@@ -25,8 +25,8 @@ class UserRead(BaseModel):
     avatar_url: Optional[str] = None
     bio: Optional[str] = None
     favorite_sport: Optional[str] = None
-    isverified: bool
+    isverified: Optional[bool] = False
     num_of_strikes: int
     created_at: datetime
-    role: str
+    role: Optional[str] = "user"
 

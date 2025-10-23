@@ -13,3 +13,17 @@ class ForgotPasswordRequestRead(BaseModel):
     created_at: datetime
     expires_at: Optional[datetime] = None
     is_used: bool
+
+
+class ForgotPasswordRequestOut(BaseModel):
+    request_id: int
+    email: EmailStr
+    created_at: datetime
+    expires_at: Optional[datetime] = None
+    is_used: bool
+
+class ResetPasswordIn(BaseModel):
+    new_password: str
+
+class ResetPasswordOut(BaseModel):
+    message: str

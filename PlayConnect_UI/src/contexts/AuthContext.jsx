@@ -96,6 +96,14 @@ export const AuthProvider = ({ children }) => {
         return { success: true };
       } else {
         const errorData = await response.json();
+        // Check if it's an email verification error
+        if (response.status === 403 && errorData.detail && errorData.detail.includes("verify your email")) {
+          return { 
+            success: false, 
+            error: errorData.detail,
+            needsVerification: true 
+          };
+        }
         return { success: false, error: errorData.detail || 'Login failed' };
       }
     } catch (error) {

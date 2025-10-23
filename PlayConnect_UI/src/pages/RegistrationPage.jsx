@@ -80,13 +80,10 @@ export default function RegistrationPage() {
                 localStorage.setItem("onboarding_seed", JSON.stringify(seed));
             } catch (_) {}
 
-            // Auto-login so onboarding can also rely on auth if available
-            try {
-                await login(form.email, form.password);
-            } catch (_) {
-                // ignore login failure, still navigate
-            }
-            // Then go to onboarding
+            // Show verification message and navigate to profile creation
+            setErrorMessage("Registration successful! Please check your email for verification instructions.");
+            
+            // Navigate to profile creation without auto-login to avoid duplicate verification emails
             navigate("/onboarding/profile");
         } catch (err) {
             setErrorMessage(err?.message || "Registration failed");

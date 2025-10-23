@@ -16,6 +16,7 @@ from PlayConnect_API.schemas.User_stats import UserStatCreate, UserStatRead
 from PlayConnect_API.schemas.Game_Instance import GameInstanceCreate, GameInstanceResponse
 from PlayConnect_API.schemas.ForgotPasswordRequest import ForgotPasswordRequestCreate, ForgotPasswordRequestOut, ResetPasswordIn, ResetPasswordOut
 from PlayConnect_API.schemas.Login import LoginRequest, TokenResponse
+from PlayConnect_API.schemas.EmailVerificationRequest import EmailVerificationRequest
 from PlayConnect_API.schemas.sport import SportRead, SportCreate
 from PlayConnect_API.schemas.Profile import ProfileCreate, ProfileRead
 from PlayConnect_API.schemas.Game_participants import GameParticipantJoin, GameParticipantLeave
@@ -70,6 +71,32 @@ async def ensure_password_reset_table():
             '''
         )
 
+
+async def send_verification_email(connection, user_id: int, email: str, first_name: str):
+    """Send email verification to user"""
+    try:
+        # Create verification URL with email parameter
+        app_url = os.getenv("APP_URL") or os.getenv("FRONTEND_URL", "http://localhost:5173")
+        import urllib.parse
+        verification_url = f"{app_url}/verify-email?email={urllib.parse.quote(email)}"
+        
+        # Render HTML template and send email
+        html = render_template(
+            "PlayConnect_API/templates/emails/email_verification.html",
+            {"first_name": first_name, "verification_url": verification_url}
+        )
+        
+        try:
+            await send_email(email, "Verify Your Email - PlayConnect", html)
+            if os.getenv("ENV", "dev").lower() != "production":
+                print(f"[DEV ONLY] Verification email sent to {email}")
+                print(f"[DEV ONLY] Verification link: {verification_url}")
+        except Exception as send_err:
+            print(f"[DEV ONLY] Email send failed: {repr(send_err)}")
+            
+    except Exception as e:
+        print(f"[DEV ONLY] Failed to send verification email: {repr(e)}")
+
 @app.post("/register")
 async def register_user(reg: RegisterRequest):
     try:
@@ -93,7 +120,12 @@ async def register_user(reg: RegisterRequest):
                 isverified,
                 role
             )
-            return dict(row) if row else None
+            
+            if row:
+                # Send email verification after registration
+                await send_verification_email(connection, row["user_id"], row["email"], row["first_name"])
+                return dict(row)
+            return None
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -270,6 +302,73 @@ async def preview_reset_email(email: str = "test@example.com", token: str = "dem
     )
     return Response(content=html, media_type="text/html")
 
+@app.post("/verify-email")
+async def verify_email(request: EmailVerificationRequest):
+    """Verify user email with email address"""
+    try:
+        print(f"[DEBUG] Verifying email: {request.email}")
+        async with Database.pool.acquire() as connection:
+            # Find user by email
+            user = await connection.fetchrow(
+                'SELECT user_id, email, isverified FROM public."Users" WHERE LOWER(email) = LOWER($1) LIMIT 1',
+                request.email
+            )
+            
+            print(f"[DEBUG] User found: {user}")
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            if user["isverified"]:
+                print(f"[DEBUG] Email already verified")
+                return {"message": "Email is already verified!"}
+            
+            # Update user verification status
+            await connection.execute(
+                'UPDATE public."Users" SET isverified = TRUE WHERE user_id = $1',
+                user["user_id"]
+            )
+            
+            print(f"[DEBUG] Email verification successful for user {user['user_id']}")
+            return {"message": "Email verified successfully! You can now access all PlayConnect features."}
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[DEBUG] Verification error: {repr(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/resend-verification")
+async def resend_verification_email(request: EmailVerificationRequest):
+    """Resend verification email for unverified users"""
+    try:
+        async with Database.pool.acquire() as connection:
+            # Find user by email
+            user = await connection.fetchrow(
+                'SELECT user_id, email, first_name, isverified FROM public."Users" WHERE LOWER(email) = LOWER($1) LIMIT 1',
+                request.email
+            )
+            
+            if not user:
+                # Don't reveal if email exists or not for security
+                return {
+                    "message": "If an account exists for that email and is not verified, a verification email has been sent."
+                }
+            
+            if user["isverified"]:
+                return {
+                    "message": "This email is already verified."
+                }
+            
+            # Send verification email
+            await send_verification_email(connection, user["user_id"], user["email"], user["first_name"])
+            
+            return {
+                "message": "Verification email sent successfully!"
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.on_event("startup")
 async def startup():
     await connect_to_db()
@@ -337,7 +436,7 @@ async def create_profile(profile: ProfileCreate, user_id: int):
         async with Database.pool.acquire() as connection:
             # Ensure user exists
             existing = await connection.fetchrow(
-                'SELECT user_id FROM public."Users" WHERE user_id = $1 LIMIT 1',
+                'SELECT user_id, email, first_name FROM public."Users" WHERE user_id = $1 LIMIT 1',
                 user_id
             )
             if not existing:
@@ -366,6 +465,7 @@ async def create_profile(profile: ProfileCreate, user_id: int):
                 profile.role,
                 user_id,
             )
+            
             return UserRead(**dict(row))
     except HTTPException:
         raise
@@ -726,9 +826,9 @@ async def api_leave_game_waitlist(game_id: int, user_id: int):
 async def login(login_request: LoginRequest):
     try:
         async with Database.pool.acquire() as connection:
-            # Query user by email
+            # Query user by email including verification status
             query = '''
-                SELECT user_id, email, password, role, first_name, last_name
+                SELECT user_id, email, password, role, first_name, last_name, isverified
                 FROM public."Users"
                 WHERE LOWER(email) = LOWER($1)
             '''
@@ -740,6 +840,15 @@ async def login(login_request: LoginRequest):
            
             if user["password"] != login_request.password.get_secret_value():
                 raise HTTPException(status_code=401, detail="Invalid email or password")
+            
+            # Check if email is verified
+            if not user["isverified"]:
+                # Send verification email for existing unverified users
+                await send_verification_email(connection, user["user_id"], user["email"], user["first_name"])
+                raise HTTPException(
+                    status_code=403, 
+                    detail="Please verify your email address. A verification email has been sent to your inbox."
+                )
             
             # Generate JWT token
             secret_key = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")

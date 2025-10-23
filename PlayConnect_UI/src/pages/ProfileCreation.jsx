@@ -290,7 +290,7 @@ export default function ProfileCreation() {
         }
         throw new Error(msg);
       }
-      setToast("Profile saved");
+      setToast("Profile saved successfully!");
       localStorage.removeItem("pc_onboarding_draft");
       localStorage.removeItem("onboarding_seed");
       navigate("/dashboard");

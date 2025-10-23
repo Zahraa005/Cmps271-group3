@@ -16,6 +16,7 @@ export default function LoginPage() {
   const [isLoadingForgot, setIsLoadingForgot] = useState(false);
   const [toast, setToast] = useState(null);
   const [errors, setErrors] = useState({});
+  const [needsVerification, setNeedsVerification] = useState(false);
   
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -67,7 +68,12 @@ export default function LoginPage() {
         setToast("Login successful! Redirecting...");
         navigate('/dashboard');
       } else {
-        setToast(result.error || "Login failed. Please check your credentials.");
+        if (result.needsVerification) {
+          setNeedsVerification(true);
+          setToast(result.error);
+        } else {
+          setToast(result.error || "Login failed. Please check your credentials.");
+        }
       }
       
     } catch (error) {
@@ -306,6 +312,41 @@ export default function LoginPage() {
             )}
           </button>
         </form>
+
+        {/* Email Verification Prompt */}
+        {needsVerification && (
+          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                  Email Verification Required
+                </h3>
+                <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">
+                  Please check your email for a verification link. If you don't see it, check your spam folder.
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => navigate("/verify-email")}
+                    className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg transition-colors"
+                  >
+                    Verify Email
+                  </button>
+                  <button
+                    onClick={() => setNeedsVerification(false)}
+                    className="text-sm text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Divider */}
         <div className="my-6 flex items-center">

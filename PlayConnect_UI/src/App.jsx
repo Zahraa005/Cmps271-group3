@@ -7,6 +7,7 @@ import LoginPage from "./pages/LoginPage";
 import RegistrationPage from "./pages/RegistrationPage"
 import DashboardPage from "./pages/DashboardPage"
 import FriendsPage from "./pages/FriendsPage";
+import EmailVerificationPage from "./pages/EmailVerificationPage";
 import { AuthProvider } from "./contexts/AuthContext"
 
 
@@ -31,6 +32,9 @@ function App() {
 
           {/* registration */}
           <Route path="/signup" element={<RegistrationPage />} />
+
+          {/* email verification */}
+          <Route path="/verify-email" element={<EmailVerificationPage />} />
 
           {/* profile creation */}
           <Route path="/onboarding/profile" element={<ProfileCreation />} />
