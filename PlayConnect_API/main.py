@@ -14,7 +14,7 @@ from PlayConnect_API.schemas.registration import RegisterRequest
 from PlayConnect_API.schemas.Coaches import CoachRead, CoachCreate 
 from PlayConnect_API.schemas.User_stats import UserStatCreate, UserStatRead
 from PlayConnect_API.schemas.Game_Instance import GameInstanceCreate, GameInstanceResponse
-from PlayConnect_API.schemas.ForgotPasswordRequest import ForgotPasswordRequestCreate, ForgotPasswordRequestOut, ResetPasswordIn, ResetPasswordOut
+from PlayConnect_API.schemas.ForgotPasswordRequest import ForgotPasswordRequestCreate
 from PlayConnect_API.schemas.Login import LoginRequest, TokenResponse
 from PlayConnect_API.schemas.EmailVerificationRequest import EmailVerificationRequest
 from PlayConnect_API.schemas.sport import SportRead, SportCreate
@@ -27,7 +27,7 @@ from PlayConnect_API.schemas.Friends import FriendCreate, FriendRead
 from PlayConnect_API.schemas.Match_Histories import MatchHistoryCreate, MatchHistoryRead
 
 from PlayConnect_API.services.mailer import render_template, send_email
-from PlayConnect_API.security_utils import gen_reset_token, hash_token, hash_password
+
 
 from datetime import datetime, timezone, timedelta
 import os, secrets, hashlib
@@ -1401,90 +1401,7 @@ async def get_notification_by_id(notification_id: int):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-# -------------------------------
-# Friends: create friendship (symmetric)
-# -------------------------------
-@app.post("/friends", response_model=FriendRead, status_code=201)
-async def create_friend(friend: FriendCreate):
-    """
-    Create a friendship in BOTH directions:
-      (user_id -> friend_id) and (friend_id -> user_id).
-    Prevent self-friendship and duplicates.
-    """
-    if friend.user_id == friend.friend_id:
-        raise HTTPException(status_code=400, detail="user_id and friend_id must be different")
-
-    try:
-        async with Database.pool.acquire() as connection:
-            # Check if either direction already exists
-            existing = await connection.fetchrow(
-                'SELECT user_id, friend_id, status FROM public."Friends"\n'
-                'WHERE (user_id = $1 AND friend_id = $2)\n'
-                '   OR (user_id = $2 AND friend_id = $1)\n'
-                'LIMIT 1',
-                friend.user_id,
-                friend.friend_id,
-            )
-            if existing:
-                raise HTTPException(status_code=409, detail="Friendship already exists")
-
-            async with connection.transaction():
-                # Insert primary direction and return it
-                created_row = await connection.fetchrow(
-                    'INSERT INTO public."Friends" (user_id, friend_id, status, created_at)\n'
-                    'VALUES ($1, $2, $3, NOW())\n'
-                    'RETURNING user_id, friend_id, status, created_at',
-                    friend.user_id,
-                    friend.friend_id,
-                    friend.status,
-                )
-
-                # Insert reverse direction
-                await connection.execute(
-                    'INSERT INTO public."Friends" (user_id, friend_id, status, created_at)\n'
-                    'VALUES ($1, $2, $3, NOW())',
-                    friend.friend_id,
-                    friend.user_id,
-                    friend.status,
-                )
-
-            return FriendRead(**dict(created_row))
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# -------------------------------
-# Friends: delete friendship (symmetric)
-# -------------------------------
-@app.delete("/friends", status_code=200)
-async def delete_friend(user_id: int, friend_id: int):
-    """
-    Hard-delete a friendship in BOTH directions:
-      (user_id -> friend_id) and (friend_id -> user_id).
-    Returns the number of rows removed (0, 1, or 2).
-    """
-    if user_id == friend_id:
-        raise HTTPException(status_code=400, detail="user_id and friend_id must be different")
-
-    try:
-        async with Database.pool.acquire() as connection:
-            result = await connection.execute(
-                'DELETE FROM public."Friends"\n'
-                'WHERE (user_id = $1 AND friend_id = $2)\n'
-                '   OR (user_id = $2 AND friend_id = $1)',
-                user_id,
-                friend_id,
-            )
-            # asyncpg returns e.g. "DELETE 0", "DELETE 1", "DELETE 2"
-            deleted = int(result.split()[-1]) if result else 0
-            return {"deleted": deleted}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
+    
 @app.get("/match-histories", response_model=List[MatchHistoryRead])
 async def get_match_histories(
     player_id: Union[int, None] = None,
@@ -1530,130 +1447,407 @@ async def get_match_histories(
     except Exception:
         raise HTTPException(status_code=500, detail="Failed to fetch match histories")
     
-@app.get("/friends", response_model=List[FriendRead])
-async def get_friends(
-    user_id: Union[int, None] = None,
-    friend_id: Union[int, None] = None,
-    status: Union[str, None] = None,   # optional filter (e.g., "accepted")
-    limit: int = 50,
-    offset: int = 0,
-):
+
+# ===============================
+# FRIENDS API (one-row per friendship)
+# - requester stored as user_id, receiver as friend_id
+# - create -> inserts 'pending'
+# - accept -> updates to 'accepted'
+# - reject -> deletes the pending row
+# - responses include ONLY the "other" user's profile in `friend`
+# ===============================
+
+
+# ---------- Response DTOs for UI ----------
+class FriendPerson(BaseModel):
+    user_id: int
+    email: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    favorite_sport: Optional[str] = None
+    mutual_count: int = 0
+
+
+class FriendEdge(BaseModel):
+    status: str
+    created_at: Optional[datetime] = None
+    friend: FriendPerson
+
+# ---------- Request bodies ----------
+class FriendCreateBody(BaseModel):
+    user_id: int      # requester
+    friend_id: int    # receiver
+
+class FriendStatusBody(BaseModel):
+    user_id: int      # requester
+    friend_id: int    # receiver
+    status: str       # 'accepted' or 'rejected' (rejected => delete)
+
+# -------------------------------
+# POST /friends  -> Send request (one row, no symmetry)
+# -------------------------------
+@app.post("/friends", response_model=FriendEdge, status_code=201)
+async def create_friend(payload: FriendCreateBody):
     """
-    Retrieve friendships, optionally filtered by user_id, friend_id, and/or status.
-    Results are ordered by most recent first and paginated.
+    Create a friend request:
+      - ONE row only: (user_id=requester, friend_id=receiver, status='pending')
+      - Prevent duplicates between same two users (any direction)
+      - Prevent self-requests
+      - Returns the row with the OTHER user's profile in `friend`
+    """
+    if payload.user_id == payload.friend_id:
+        raise HTTPException(status_code=400, detail="user_id and friend_id must be different")
+
+    try:
+        async with Database.pool.acquire() as connection:
+            # Block if any row exists between the same pair (either direction)
+            exists = await connection.fetchrow(
+                '''
+                SELECT 1
+                FROM public."Friends"
+                WHERE (user_id = $1 AND friend_id = $2)
+                   OR (user_id = $2 AND friend_id = $1)
+                LIMIT 1
+                ''',
+                payload.user_id, payload.friend_id
+            )
+            if exists:
+                raise HTTPException(status_code=409, detail="Friendship already exists or pending")
+
+            # Insert pending request
+            row = await connection.fetchrow(
+                '''
+                INSERT INTO public."Friends" (user_id, friend_id, status, created_at)
+                VALUES ($1, $2, 'pending', NOW())
+                RETURNING user_id, friend_id, status, created_at
+                ''',
+                payload.user_id, payload.friend_id
+            )
+
+            # Return with OTHER user's profile (receiver is the other)
+            other = await connection.fetchrow(
+                '''
+                SELECT u.user_id, u.email, u.first_name, u.last_name, u.avatar_url, u.favorite_sport
+                FROM public."Users" AS u
+                WHERE u.user_id = $1
+                ''',
+                payload.friend_id
+            )
+            return {
+                "status": row["status"],
+                "created_at": row["created_at"],
+                "friend": dict(other) if other else None
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# -------------------------------
+# PUT /friends/status  -> Accept or Reject
+# -------------------------------
+@app.put("/friends/status", response_model=Union[FriendEdge, dict])
+async def update_friend_status(body: FriendStatusBody):
+    """
+    Accept or reject a friend request from user_id -> friend_id.
+      - 'accepted' => update same row to accepted and return OTHER profile (receiver sees requester)
+      - 'rejected' => delete the row and return {message}
+    """
+    if body.status not in ("accepted", "rejected"):
+        raise HTTPException(status_code=400, detail="status must be 'accepted' or 'rejected'")
+
+    try:
+        async with Database.pool.acquire() as connection:
+            # Ensure the pending row exists in the REQUEST direction
+            pending = await connection.fetchrow(
+                '''
+                SELECT user_id, friend_id, status, created_at
+                FROM public."Friends"
+                WHERE user_id = $1 AND friend_id = $2
+                LIMIT 1
+                ''',
+                body.user_id, body.friend_id
+            )
+            if not pending:
+                raise HTTPException(status_code=404, detail="Friend request not found")
+
+            if body.status == "rejected":
+                await connection.execute(
+                    '''
+                    DELETE FROM public."Friends"
+                    WHERE user_id = $1 AND friend_id = $2
+                    ''',
+                    body.user_id, body.friend_id
+                )
+                return {"message": "Friend request rejected and removed."}
+
+            # Accept: update same row
+            updated = await connection.fetchrow(
+                '''
+                UPDATE public."Friends"
+                SET status = 'accepted'
+                WHERE user_id = $1 AND friend_id = $2
+                RETURNING user_id, friend_id, status, created_at
+                ''',
+                body.user_id, body.friend_id
+            )
+
+            # For the receiver (friend_id), the OTHER user is the requester (user_id)
+            other = await connection.fetchrow(
+                '''
+                SELECT u.user_id, u.email, u.first_name, u.last_name, u.avatar_url, u.favorite_sport
+                FROM public."Users" AS u
+                WHERE u.user_id = $1
+                ''',
+                body.user_id
+            )
+            return {
+                "status": updated["status"],
+                "created_at": updated["created_at"],
+                "friend": dict(other) if other else None
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# -------------------------------
+# DELETE /friends  -> Unfriend or Reject (generic)
+# -------------------------------
+@app.delete("/friends", status_code=200)
+async def delete_friend(user_id: int, friend_id: int):
+    """
+    Delete the friendship/request row between two users (any direction).
+    Use this for: unfriend OR rejecting (if you don't call /friends/status).
+    """
+    if user_id == friend_id:
+        raise HTTPException(status_code=400, detail="user_id and friend_id must be different")
+
+    try:
+        async with Database.pool.acquire() as connection:
+            result = await connection.execute(
+                '''
+                DELETE FROM public."Friends"
+                WHERE (user_id = $1 AND friend_id = $2)
+                   OR (user_id = $2 AND friend_id = $1)
+                ''',
+                user_id, friend_id
+            )
+        deleted = int(result.split()[-1]) if result else 0
+        if deleted == 0:
+            raise HTTPException(status_code=404, detail="No friendship found")
+        return {"deleted": deleted}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# -------------------------------
+# GET /friends/my  -> Accepted friends for me (include OTHER profile)
+# -------------------------------
+@app.get("/friends/my", response_model=List[FriendEdge])
+async def my_friends(user_id: int):
+    """
+    Return accepted friendships for user_id (either direction),
+    with ONLY the OTHER user's profile in `friend`.
     """
     try:
         async with Database.pool.acquire() as connection:
-            # base query
-            query = """
-                SELECT id, user_id, friend_id, status, created_at
+            rows = await connection.fetch(
+                '''
+                WITH edges AS (
+                  SELECT
+                    CASE WHEN f.user_id = $1 THEN f.friend_id ELSE f.user_id END AS other_id,
+                    f.status, f.created_at
+                  FROM public."Friends" f
+                  WHERE f.status = 'accepted'
+                    AND ($1 = f.user_id OR $1 = f.friend_id)
+                )
+                SELECT e.status, e.created_at,
+                       u.user_id, u.email, u.first_name, u.last_name, u.avatar_url, u.favorite_sport
+                FROM edges e
+                JOIN public."Users" u ON u.user_id = e.other_id
+                ORDER BY e.created_at DESC
+                ''',
+                user_id
+            )
+            return [
+                {
+                    "status": r["status"],
+                    "created_at": r["created_at"],
+                    "friend": {
+                        "user_id": r["user_id"],
+                        "email": r["email"],
+                        "first_name": r["first_name"],
+                        "last_name": r["last_name"],
+                        "avatar_url": r["avatar_url"],
+                        "favorite_sport": r["favorite_sport"],
+                    }
+                }
+                for r in rows
+            ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# -------------------------------
+# GET /friends/requests  -> Pending requests RECEIVED by me
+# -------------------------------
+@app.get("/friends/requests", response_model=List[FriendEdge])
+async def requests_received(user_id: int):
+    """
+    Pending requests RECEIVED by user_id.
+    Shows ONLY the OTHER user (the requester) in `friend`.
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            rows = await connection.fetch(
+                '''
+                SELECT f.status, f.created_at,
+                       u.user_id, u.email, u.first_name, u.last_name, u.avatar_url, u.favorite_sport
+                FROM public."Friends" f
+                JOIN public."Users"  u ON u.user_id = f.user_id
+                WHERE f.status = 'pending' AND f.friend_id = $1
+                ORDER BY f.created_at DESC
+                ''',
+                user_id
+            )
+            return [
+                {
+                    "status": r["status"],
+                    "created_at": r["created_at"],
+                    "friend": {
+                        "user_id": r["user_id"],
+                        "email": r["email"],
+                        "first_name": r["first_name"],
+                        "last_name": r["last_name"],
+                        "avatar_url": r["avatar_url"],
+                        "favorite_sport": r["favorite_sport"],
+                    }
+                }
+                for r in rows
+            ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# -------------------------------
+# GET /friends/sent  -> Pending requests I SENT
+# -------------------------------
+@app.get("/friends/sent", response_model=List[FriendEdge])
+async def requests_sent(user_id: int):
+    """
+    Pending requests SENT by user_id.
+    Shows ONLY the OTHER user (the receiver) in `friend`.
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            rows = await connection.fetch(
+                '''
+                SELECT f.status, f.created_at,
+                       u.user_id, u.email, u.first_name, u.last_name, u.avatar_url, u.favorite_sport
+                FROM public."Friends" f
+                JOIN public."Users"  u ON u.user_id = f.friend_id
+                WHERE f.status = 'pending' AND f.user_id = $1
+                ORDER BY f.created_at DESC
+                ''',
+                user_id
+            )
+            return [
+                {
+                    "status": r["status"],
+                    "created_at": r["created_at"],
+                    "friend": {
+                        "user_id": r["user_id"],
+                        "email": r["email"],
+                        "first_name": r["first_name"],
+                        "last_name": r["last_name"],
+                        "avatar_url": r["avatar_url"],
+                        "favorite_sport": r["favorite_sport"],
+                    }
+                }
+                for r in rows
+            ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# -------------------------------
+# GET /friends/find  -> Users with NO relation to me (discover)
+# -------------------------------
+@app.get("/friends/find", response_model=List[FriendPerson])
+async def find_friends(user_id: int, query: Union[str, None] = None, limit: int = 20, offset: int = 0):
+    """
+    Users not already connected to user_id in any status and not me.
+    Returns candidate users with a real mutual_count (accepted↔accepted).
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            sql = f'''
+                WITH my_friends AS (
+                    -- all accepted friends of the current user (as other_id)
+                    SELECT CASE WHEN f.user_id = $1 THEN f.friend_id ELSE f.user_id END AS other_id
+                    FROM public."Friends" AS f
+                    WHERE f.status = 'accepted' AND ($1 = f.user_id OR $1 = f.friend_id)
+                ),
+                candidates AS (
+                    -- all users who are NOT me and have NO relation (any status) with me
+                    SELECT u.user_id, u.email, u.first_name, u.last_name, u.avatar_url, u.favorite_sport
+                    FROM public."Users" AS u
+                    WHERE u.user_id <> $1
+                      AND NOT EXISTS (
+                        SELECT 1
+                        FROM public."Friends" AS f
+                        WHERE (f.user_id = $1 AND f.friend_id = u.user_id)
+                           OR (f.user_id = u.user_id AND f.friend_id = $1)
+                      )
+                )
+                SELECT
+                    c.user_id, c.email, c.first_name, c.last_name, c.avatar_url, c.favorite_sport,
+                    COALESCE((
+                        SELECT COUNT(*)
+                        FROM my_friends mf
+                        JOIN public."Friends" f2
+                          ON f2.status = 'accepted'
+                         AND (
+                               (f2.user_id = c.user_id AND f2.friend_id = mf.other_id)
+                            OR (f2.user_id = mf.other_id AND f2.friend_id = c.user_id)
+                         )
+                    ), 0) AS mutual_count
+                FROM candidates c
+                { "WHERE (c.email ILIKE $" + str(2) + " OR c.first_name ILIKE $" + str(2) + " OR c.last_name ILIKE $" + str(2) + ")" if query else "" }
+                ORDER BY c.user_id DESC
+                LIMIT {limit} OFFSET {offset}
+            '''
+            params = [user_id]
+            if query:
+                params.append(f"%{query}%")
+
+            rows = await connection.fetch(sql, *params)
+            return [FriendPerson(**dict(r)) for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+# -------------------------------
+# GET /friends/sent -> Pending requests I sent
+# -------------------------------
+@app.get("/friends/sent", response_model=List[int])
+async def sent_requests(user_id: int):
+    """
+    Return list of friend_ids to whom this user has SENT a pending request.
+    (i.e. rows where user_id = ME AND status='pending')
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            rows = await connection.fetch(
+                '''
+                SELECT friend_id
                 FROM public."Friends"
-            """
-            conditions: list[str] = []
-            params: list[object] = []
-
-            if user_id is not None:
-                conditions.append(f"user_id = ${len(params) + 1}")
-                params.append(user_id)
-
-            if friend_id is not None:
-                conditions.append(f"friend_id = ${len(params) + 1}")
-                params.append(friend_id)
-
-            if status is not None:
-                conditions.append(f"status = ${len(params) + 1}")
-                params.append(status)
-
-            if conditions:
-                query += " WHERE " + " AND ".join(conditions)
-
-            query += " ORDER BY created_at DESC"
-
-            # pagination placeholders come after existing params
-            limit_idx = len(params) + 1
-            offset_idx = len(params) + 2
-            query += f" LIMIT ${limit_idx} OFFSET ${offset_idx}"
-            params.extend([limit, offset])
-
-            rows = await connection.fetch(query, *params)
-            return [FriendRead(**dict(row)) for row in rows]
-
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to fetch friends")
-
-@app.post("/auth/forgot-password", response_model=ForgotPasswordRequestOut)
-async def create_forgot_password_request(payload: ForgotPasswordRequestCreate):
-    try:
-        async with Database.pool.acquire() as conn:
-            email = str(payload.email).lower().strip()
-            user = await conn.fetchrow(
-                'SELECT id, email FROM public."Users" WHERE email = $1',
-                email
+                WHERE user_id = $1 AND status = 'pending'
+                ''',
+                user_id
             )
+        return [r["friend_id"] for r in rows]
 
-            now = datetime.now(timezone.utc)
-            expires_at = now + timedelta(minutes=30)
-
-            await conn.execute(
-                'INSERT INTO public."ForgotPasswordRequests"(email, created_at, expires_at, is_used) '
-                'VALUES ($1, $2, $3, $4)',
-                email, now, expires_at, False
-            )
-
-            if not user:
-                return ForgotPasswordRequestOut(message="If the email exists, a reset link was sent.", reset_token=None)
-
-            raw_token = gen_reset_token()
-            token_h = hash_token(raw_token)
-
-            await conn.execute(
-                'INSERT INTO public."Password_Reset_Tokens"(user_id, token_hash, expires_at, used_at, created_at) '
-                'VALUES ($1, $2, $3, $4, $5)',
-                user["id"], token_h, expires_at, None, now
-            )
-
-            return ForgotPasswordRequestOut(message="Reset link generated.", reset_token=raw_token)
-
-    except Exception:
-        raise HTTPException(status_code=500, detail="Could not create password reset request")
-
-
-@app.post("/auth/reset-password", response_model=ResetPasswordOut)
-async def reset_password(payload: ResetPasswordIn):
-    try:
-        async with Database.pool.acquire() as conn:
-            now = datetime.now(timezone.utc)
-            incoming_hash = hash_token(payload.token)
-
-            tok = await conn.fetchrow(
-                'SELECT id, user_id, expires_at, used_at '
-                'FROM public."Password_Reset_Tokens" '
-                'WHERE token_hash = $1 AND used_at IS NULL AND expires_at > $2 '
-                'ORDER BY id DESC LIMIT 1',
-                incoming_hash, now
-            )
-            if not tok:
-                raise HTTPException(status_code=400, detail="Invalid or expired token")
-
-            user_id = tok["user_id"]
-            u = await conn.fetchrow('SELECT id FROM public."Users" WHERE id = $1', user_id)
-            if not u:
-                raise HTTPException(status_code=404, detail="User not found")
-
-            new_hash = hash_password(payload.new_password)
-            await conn.execute(
-                'UPDATE public."Users" SET password_hash = $1 WHERE id = $2',
-                new_hash, user_id
-            )
-
-            await conn.execute(
-                'UPDATE public."Password_Reset_Tokens" SET used_at = $1 WHERE id = $2',
-                now, tok["id"]
-            )
-
-            return ResetPasswordOut(message="Password has been reset.")
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(status_code=500, detail="Could not reset password")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
