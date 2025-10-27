@@ -6,6 +6,9 @@ cat > .gitignore <<'GIT'
 __pycache__/
 *.py[cod]
 *$py.class
+_pycache__/
+*.pyc
+
 
 # Virtual envs
 venv/
@@ -37,3 +40,4 @@ package-lock.json
 # Vite / React builds
 dist/
 coverage/
+_
