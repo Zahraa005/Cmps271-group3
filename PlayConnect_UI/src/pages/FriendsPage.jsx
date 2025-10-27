@@ -1,103 +1,329 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Search, UserPlus, UserCheck, X } from "lucide-react";
+
+/**
+ * HOW WE GET THE LOGGED-IN USER:
+ * - Try localStorage "user_id" (set this when you log in)
+ * - Fallback to query param ?user_id=... (useful for quick testing)
+ * - If still missing, show an error banner
+ */
+function useCurrentUserId() {
+  const fromStorage = Number(localStorage.getItem("user_id"));
+  const fromQuery = Number(new URLSearchParams(window.location.search).get("user_id"));
+  return Number.isFinite(fromStorage) && fromStorage > 0
+    ? fromStorage
+    : Number.isFinite(fromQuery) && fromQuery > 0
+    ? fromQuery
+    : null;
+}
+
+// Change this to your API base if needed:
+const API_BASE = import.meta?.env?.VITE_API_URL || "http://localhost:8000";
 
 export default function FriendsPage() {
   const [tab, setTab] = useState("friends");
   const [search, setSearch] = useState("");
-  const [friends, setFriends] = useState([]);
-  const [requests, setRequests] = useState([]);
-  const [suggestions, setSuggestions] = useState([]);
+  const [friends, setFriends] = useState([]);          // accepted friends
+  const [requests, setRequests] = useState([]);        // incoming requests
+  const [sent, setSent] = useState([]);                // pending requests I SENT
+  const [suggestions, setSuggestions] = useState([]);  // discover
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // ✅ Temporary user ID (Zahraa)
-  const currentUserId = 25;
+  // cancel button in-flight
+  const [cancelingId, setCancelingId] = useState(null);
 
-  // ==========================
-  // Fetch Friends Data (simulated for artifact)
-  // ==========================
-  useEffect(() => {
-    // Simulated data for artifact display
-    const mockFriends = [
-      { friend_id: 1, name: "Alice Johnson", sport: "Tennis 🎾", level: "Intermediate", mutual: 3, status: "accepted" },
-      { friend_id: 2, name: "John Doe", sport: "Football ⚽", level: "Advanced", mutual: 5, status: "accepted" },
-    ];
-    const mockRequests = [
-      { friend_id: 3, name: "Maya Karam", sport: "Basketball 🏀", level: "Beginner", mutual: 1, status: "pending" }
-    ];
-    
-    setFriends(mockFriends);
-    setRequests(mockRequests);
-  }, []);
+  // local toast (top-center bubble)
+  const [toast, setToast] = useState(null);
 
-  // ==========================
-  // Helpers
-  // ==========================
+  const currentUserId = useCurrentUserId();
+
+  // ---------- Helpers ----------
   const getInitials = (name) => {
     if (!name) return "?";
     const parts = name.trim().split(" ");
-    if (parts.length === 1) return parts[0][0].toUpperCase();
+    if (parts.length === 1) return parts[0][0]?.toUpperCase() || "?";
     return (parts[0][0] + parts[1][0]).toUpperCase();
   };
 
-  const handleViewProfile = (friendId) => {
-    console.log(`View profile: ${friendId}`);
+  const displayNameOf = (p) => {
+    const fn = p.first_name || "";
+    const ln = p.last_name || "";
+    const name = (fn + " " + ln).trim();
+    if (name) return name;
+    return p.email || `User ${p.user_id || p.friend_id || "-"}`;
   };
 
-  // ==========================
-  // Friend Card Component
-  // ==========================
-  const FriendCard = ({ person, variant = "default" }) => {
-    console.log("Friend data:", person);
+  const handleViewProfile = (friendUserId) => {
+    // Route to a profile page if you have one, for now just log
+    console.log("View profile:", friendUserId);
+  };
 
-    // ✅ Pick the display name safely
+  // ---------- API calls ----------
+  async function apiGet(path) {
+    const url = `${API_BASE}${path}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
+    return res.json();
+  }
+
+  async function apiPost(path, body) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(`POST ${path} failed: ${res.status} ${t}`);
+    }
+    return res.json();
+  }
+
+  async function apiPut(path, body) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(`PUT ${path} failed: ${res.status} ${t}`);
+    }
+    return res.json();
+  }
+
+  async function apiDelete(path) {
+    const res = await fetch(`${API_BASE}${path}`, { method: "DELETE" });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(`DELETE ${path} failed: ${res.status} ${t}`);
+    }
+    return res.json().catch(() => ({}));
+  }
+
+  // ---------- Normalizers ----------
+  // Backend /friends/my and /friends/requests return { status, created_at, friend: {...} }
+  const mapEdgeToPerson = (edge) => {
+    const f = edge.friend || {};
+    return {
+      user_id: f.user_id,
+      email: f.email,
+      first_name: f.first_name,
+      last_name: f.last_name,
+      avatar_url: f.avatar_url,
+      favorite_sport: f.favorite_sport,
+      mutual_count: edge.mutual_count ?? undefined,
+      status: edge.status,
+      created_at: edge.created_at,
+    };
+  };
+
+  // ---------- Loaders ----------
+  async function loadFriends() {
+    const data = await apiGet(`/friends/my?user_id=${currentUserId}`);
+    setFriends(data.map(mapEdgeToPerson));
+  }
+
+  async function loadRequests() {
+    const data = await apiGet(`/friends/requests?user_id=${currentUserId}`);
+    setRequests(data.map(mapEdgeToPerson));
+  }
+
+  async function loadSent() {
+    const data = await apiGet(`/friends/sent?user_id=${currentUserId}`);
+    setSent(data.map(mapEdgeToPerson)); // pending requests I sent, shaped as people
+  }
+
+  async function loadSuggestions() {
+    const q = search ? `&query=${encodeURIComponent(search)}` : "";
+    const data = await apiGet(`/friends/find?user_id=${currentUserId}${q}`);
+    setSuggestions(data);
+  }
+
+  // ---------- Actions ----------
+  async function onAccept(requesterId) {
+    await apiPut(`/friends/status`, {
+      user_id: requesterId,     // requester
+      friend_id: currentUserId, // me = receiver
+      status: "accepted",
+    });
+    await Promise.all([loadRequests(), loadFriends()]);
+  }
+
+  async function onDecline(requesterId) {
+    await apiPut(`/friends/status`, {
+      user_id: requesterId,
+      friend_id: currentUserId,
+      status: "rejected",
+    });
+    await loadRequests();
+  }
+
+  async function onAddFriend(targetId) {
+    await apiPost(`/friends`, {
+      user_id: currentUserId,
+      friend_id: targetId,
+    });
+    await Promise.all([loadSuggestions(), loadRequests(), loadSent()]);
+  }
+
+  async function onCancelPending(targetId) {
+    if (!targetId) return;
+    const ok = window.confirm("Cancel this friend request?");
+    if (!ok) return;
+
+    try {
+      setCancelingId(targetId);
+      // DELETE /friends?user_id=ME&friend_id=TARGET (your backend supports both directions)
+      await apiDelete(`/friends?user_id=${currentUserId}&friend_id=${targetId}`);
+      setToast("Request canceled");
+      // refresh pending sent + suggestions (so they become add-able again)
+      await Promise.all([loadSent(), loadSuggestions()]);
+    } catch (e) {
+      console.error(e);
+      setToast("Failed to cancel request");
+    } finally {
+      setCancelingId(null);
+    }
+  }
+
+  // ---------- Effects ----------
+  useEffect(() => {
+    if (!currentUserId) {
+      setError("Missing logged-in user_id. Add it to localStorage or as ?user_id=123");
+      return;
+    }
+    setError("");
+  }, [currentUserId]);
+
+  // auto-hide toast after 3s
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000); // 3s
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  // Load when tab changes
+  const debouncedSearch = useMemo(() => search, [search]);
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    setLoading(true);
+    const load = async () => {
+      try {
+        if (tab === "friends") {
+          await Promise.all([loadFriends(), loadSent()]);
+        } else if (tab === "requests") {
+          await loadRequests();
+        } else {
+          await loadSuggestions();
+        }
+      } catch (e) {
+        setError(e.message || String(e));
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, currentUserId]);
+
+  // Refetch suggestions when searching in Find tab
+  useEffect(() => {
+    if (!currentUserId) return;
+    if (tab !== "find") return;
+    const t = setTimeout(() => {
+      loadSuggestions().catch((e) => setError(e.message || String(e)));
+    }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, tab, currentUserId]);
+
+  // ---------- Friend Card ----------
+  const FriendCard = ({ person, variant = "default", onAcceptClick, onDeclineClick, onAddClick, onCancelClick }) => {
     const displayName =
       person.name && person.name.trim() !== ""
         ? person.name
-        : person.first_name && person.last_name
-        ? `${person.first_name} ${person.last_name}`
-        : `User ${person.friend_id}`;
+        : displayNameOf(person);
+
+    const sportText = person.favorite_sport || person.sport || "—";
+    const isCanceling = cancelingId === person.user_id;
 
     return (
       <div className="group bg-neutral-900 border border-neutral-800 rounded-xl p-5 shadow-lg hover:shadow-fuchsia-900/50 hover:border-fuchsia-800/50 transition-all duration-300 hover:-translate-y-1">
         {/* Avatar + Name */}
         <div className="flex items-start gap-4 mb-4">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-            {getInitials(displayName)}
+          <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
+            {person.avatar_url ? (
+              <img
+                src={person.avatar_url}
+                alt={displayName}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center text-white font-bold text-sm">
+                {getInitials(displayName)}
+              </div>
+            )}
           </div>
+
           <div className="flex-1 min-w-0">
             <h4 className="text-indigo-300 font-bold text-lg truncate">
               {displayName}
             </h4>
-            <p className="text-sm text-neutral-400">{person.sport || "—"}</p>
+            <p className="text-sm text-neutral-400">{sportText}</p>
           </div>
         </div>
 
-        {/* Level + Mutual */}
+        {/* Level + Mutual / Status strip */}
         <div className="flex gap-3 text-xs text-neutral-500 mb-4 pb-4 border-b border-neutral-800">
-          <span>{person.level || "—"}</span>
-          {person.mutual !== undefined && (
-            <span>👥 {person.mutual} mutual</span>
+          {variant === "default" && <span>🤝 Connected</span>}
+          {variant === "request" && <span>Incoming request</span>}
+          {variant === "pendingSent" && <span>⏳ Pending</span>}
+          {variant === "suggestion" && Number.isFinite(person.mutual_count) && (
+            <span>👥 {person.mutual_count} mutual</span>
           )}
         </div>
 
         {/* Buttons */}
         {variant === "request" ? (
           <div className="flex gap-2">
-            <button className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-1">
+            <button
+              onClick={onAcceptClick}
+              className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-1"
+            >
               <UserCheck size={16} /> Accept
             </button>
-            <button className="flex-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-3 py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-1">
+            <button
+              onClick={onDeclineClick}
+              className="flex-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-3 py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-1"
+            >
               <X size={16} /> Decline
             </button>
           </div>
+        ) : variant === "pendingSent" ? (
+          <button
+            onClick={onCancelClick}
+            disabled={isCanceling}
+            className={`w-full px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 ${
+              isCanceling
+                ? "bg-neutral-800 text-neutral-400 cursor-not-allowed"
+                : "bg-neutral-800 hover:bg-neutral-700 text-neutral-200"
+            }`}
+          >
+            {isCanceling ? "Canceling..." : "Pending — Cancel"}
+          </button>
         ) : variant === "suggestion" ? (
-          <button className="w-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 hover:from-indigo-600 hover:to-fuchsia-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 group-hover:shadow-lg group-hover:shadow-fuchsia-500/20">
+          <button
+            onClick={onAddClick}
+            className="w-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 hover:from-indigo-600 hover:to-fuchsia-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 group-hover:shadow-lg group-hover:shadow-fuchsia-500/20"
+          >
             <UserPlus size={16} /> Add Friend
           </button>
         ) : (
           <button
-            onClick={() => handleViewProfile(person.friend_id)}
+            onClick={() => handleViewProfile(person.user_id)}
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
           >
             View Profile
@@ -107,26 +333,21 @@ export default function FriendsPage() {
     );
   };
 
-  // ==========================
-  // Filters
-  // ==========================
+  // ---------- Filters (client-side search) ----------
   const filteredFriends = friends.filter((f) =>
-    (f.name || f.first_name || "")
-      .toLowerCase()
-      .includes(search.toLowerCase())
+    displayNameOf(f).toLowerCase().includes(search.toLowerCase())
   );
-
   const filteredRequests = requests.filter((r) =>
-    (r.name || r.first_name || "").toLowerCase().includes(search.toLowerCase())
+    displayNameOf(r).toLowerCase().includes(search.toLowerCase())
   );
-
   const filteredSuggestions = suggestions.filter((s) =>
-    (s.name || s.first_name || "").toLowerCase().includes(search.toLowerCase())
+    displayNameOf(s).toLowerCase().includes(search.toLowerCase())
+  );
+  const filteredSent = sent.filter((s) =>
+    displayNameOf(s).toLowerCase().includes(search.toLowerCase())
   );
 
-  // ==========================
-  // Loading & Error UI
-  // ==========================
+  // ---------- Loading & Error ----------
   if (loading)
     return (
       <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-neutral-400">
@@ -141,12 +362,17 @@ export default function FriendsPage() {
       </div>
     );
 
-  // ==========================
-  // Main UI
-  // ==========================
+  if (!currentUserId)
+    return (
+      <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-yellow-400">
+        Missing user_id. Save it in localStorage or pass ?user_id=ME
+      </div>
+    );
+
+  // ---------- UI ----------
   return (
     <div className="min-h-screen bg-neutral-950 relative overflow-hidden text-neutral-100">
-      {/* === Background Layers === */}
+      {/* Background Layers */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-20"
@@ -165,7 +391,7 @@ export default function FriendsPage() {
         }}
       />
 
-      {/* === Navbar === */}
+      {/* Navbar */}
       <div className="flex justify-between items-center py-5 px-10 relative z-10">
         <div className="flex items-center gap-2 text-2xl font-bold hover:opacity-90 transition-opacity cursor-pointer">
           <span className="bg-gradient-to-r from-indigo-400 via-fuchsia-500 to-purple-500 bg-clip-text text-transparent">
@@ -175,16 +401,10 @@ export default function FriendsPage() {
         </div>
 
         <div className="flex items-center gap-5">
-          <a
-            href="/"
-            className="text-white hover:text-neutral-100 text-sm transition"
-          >
+          <a href="/" className="text-white hover:text-neutral-100 text-sm transition">
             Back to Home
           </a>
-          <a
-            href="/dashboard"
-            className="text-white hover:text-neutral-100 text-sm transition"
-          >
+          <a href="/dashboard" className="text-white hover:text-neutral-100 text-sm transition">
             Dashboard
           </a>
           <button
@@ -196,14 +416,10 @@ export default function FriendsPage() {
         </div>
       </div>
 
-      {/* === Header === */}
+      {/* Header */}
       <div className="text-center mt-6 mb-10 relative z-10">
-        <h2 className="text-4xl font-bold text-fuchsia-300 tracking-wide mb-2">
-          Friends
-        </h2>
-        <p className="text-neutral-400 text-sm">
-          Connect and play with your community
-        </p>
+        <h2 className="text-4xl font-bold text-fuchsia-300 tracking-wide mb-2">Friends</h2>
+        <p className="text-neutral-400 text-sm">Connect and play with your community</p>
 
         <div className="flex justify-center gap-4 mt-6">
           {["friends", "requests", "find"].map((item) => (
@@ -217,16 +433,16 @@ export default function FriendsPage() {
               }`}
             >
               {item === "friends" && "My Friends"}
-              {item === "requests" && `Requests (${requests.length})`}
+              {item === "requests" && `Requests (${filteredRequests.length})`}
               {item === "find" && "Find Friends"}
             </button>
           ))}
         </div>
       </div>
 
-      {/* === Content === */}
+      {/* Content */}
       <div className="max-w-6xl mx-auto px-10 pb-20 relative z-10">
-        {/* Search Bar */}
+        {/* Search */}
         <div className="mb-8 flex items-center gap-3 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 hover:border-neutral-700 transition max-w-sm mx-auto">
           <Search size={18} className="text-neutral-500" />
           <input
@@ -240,25 +456,47 @@ export default function FriendsPage() {
 
         {/* Friends Tab */}
         {tab === "friends" && (
-          <div>
-            <h3 className="text-xl font-semibold mb-6 text-neutral-300">
-              My Friends ({filteredFriends.length})
-            </h3>
-            {filteredFriends.length > 0 ? (
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredFriends.map((f) => (
-                  <FriendCard key={f.friend_id} person={f} />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12 text-neutral-400">
-                <p className="text-sm">No friends found</p>
+          <div className="space-y-12">
+            {/* Accepted friends */}
+            <div>
+              <h3 className="text-xl font-semibold mb-6 text-neutral-300">
+                My Friends ({filteredFriends.length})
+              </h3>
+              {filteredFriends.length > 0 ? (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredFriends.map((p) => (
+                    <FriendCard key={p.user_id} person={p} />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-neutral-400">
+                  <p className="text-sm">No friends found</p>
+                </div>
+              )}
+            </div>
+
+            {/* Pending requests I SENT */}
+            {filteredSent.length > 0 && (
+              <div>
+                <h3 className="text-xl font-semibold mb-6 text-neutral-300">
+                  Pending Requests (Sent) ({filteredSent.length})
+                </h3>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredSent.map((p) => (
+                    <FriendCard
+                      key={p.user_id}
+                      person={p}
+                      variant="pendingSent"
+                      onCancelClick={() => onCancelPending(p.user_id)}
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </div>
         )}
 
-        {/* Requests Tab */}
+        {/* Requests Tab (incoming) */}
         {tab === "requests" && (
           <div>
             <h3 className="text-xl font-semibold mb-6 text-neutral-300">
@@ -266,8 +504,14 @@ export default function FriendsPage() {
             </h3>
             {filteredRequests.length > 0 ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredRequests.map((r) => (
-                  <FriendCard key={r.friend_id} person={r} variant="request" />
+                {filteredRequests.map((p) => (
+                  <FriendCard
+                    key={p.user_id}
+                    person={p}
+                    variant="request"
+                    onAcceptClick={() => onAccept(p.user_id)}
+                    onDeclineClick={() => onDecline(p.user_id)}
+                  />
                 ))}
               </div>
             ) : (
@@ -286,8 +530,13 @@ export default function FriendsPage() {
             </h3>
             {filteredSuggestions.length > 0 ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredSuggestions.map((s) => (
-                  <FriendCard key={s.friend_id} person={s} variant="suggestion" />
+                {filteredSuggestions.map((p) => (
+                  <FriendCard
+                    key={p.user_id}
+                    person={p}
+                    variant="suggestion"
+                    onAddClick={() => onAddFriend(p.user_id)}
+                  />
                 ))}
               </div>
             ) : (
@@ -298,6 +547,13 @@ export default function FriendsPage() {
           </div>
         )}
       </div>
+
+      {/* Toast (top-center) */}
+      {toast && (
+        <div className="fixed left-1/2 top-4 -translate-x-1/2 rounded-full bg-neutral-900 border border-neutral-700 px-4 py-2 text-sm text-neutral-100 shadow-lg z-50">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
