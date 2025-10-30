@@ -26,6 +26,8 @@ from PlayConnect_API.schemas.Notifications import NotificationCreate, Notificati
 from PlayConnect_API.schemas.Friends import FriendCreate, FriendRead
 from PlayConnect_API.schemas.Match_Histories import MatchHistoryCreate, MatchHistoryRead
 
+from PlayConnect_API.security_utils import hash_password, verify_password
+
 from PlayConnect_API.services.mailer import render_template, send_email
 
 
@@ -109,12 +111,17 @@ async def register_user(reg: RegisterRequest):
             created_at = reg.created_at if reg.created_at else datetime.utcnow()
             isverified = False
             role = "player"
+            from pydantic import SecretStr
+            raw_pw = reg.password.get_secret_value() if isinstance(reg.password, SecretStr) else str(reg.password)
+            print("[DEBUG] /register password raw:", raw_pw)
+            print("[DEBUG] /register password byte len:", len(raw_pw.encode("utf-8")))
+            hashed_pw = hash_password(raw_pw)
             row = await connection.fetchrow(
                 query,
                 reg.first_name,
                 reg.last_name,
                 reg.email,
-                reg.password,
+                hashed_pw,
                 reg.age,
                 created_at,
                 isverified,
@@ -401,10 +408,15 @@ async def create_user(user: UserCreate):
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                 RETURNING user_id, email, first_name, last_name, age, avatar_url, bio, favorite_sport, isverified, num_of_strikes, created_at, role
             '''
+            from pydantic import SecretStr
+            raw_pw = user.password.get_secret_value() if isinstance(user.password, SecretStr) else str(user.password)
+            print("[DEBUG] /users password raw:", raw_pw)
+            print("[DEBUG] /users password byte len:", len(raw_pw.encode("utf-8")))
+            hashed_pw = hash_password(raw_pw)
             row = await connection.fetchrow(
                 query,
                 user.email,
-                user.password,
+                hashed_pw,
                 user.first_name,
                 user.last_name,         #made this to test my Users model, this shouldn't be used for registration and login n stuff 
                 user.age,                           
@@ -837,8 +849,10 @@ async def login(login_request: LoginRequest):
             if not user:
                 raise HTTPException(status_code=401, detail="Invalid email or password")
             
-           
-            if user["password"] != login_request.password.get_secret_value():
+            
+            plain_pw = login_request.password.get_secret_value()
+            stored_hash = user["password"]
+            if not verify_password(plain_pw, stored_hash):
                 raise HTTPException(status_code=401, detail="Invalid email or password")
             
             # Check if email is verified
