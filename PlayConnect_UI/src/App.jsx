@@ -8,6 +8,7 @@ import RegistrationPage from "./pages/RegistrationPage"
 import DashboardPage from "./pages/DashboardPage"
 import FriendsPage from "./pages/FriendsPage";
 import EmailVerificationPage from "./pages/EmailVerificationPage";
+import ResetPassword from "./pages/ResetPassword";
 import { AuthProvider } from "./contexts/AuthContext"
 
 
@@ -43,6 +44,7 @@ function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
            {/* Friends Page route */}
           <Route path="/friends" element={<FriendsPage />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

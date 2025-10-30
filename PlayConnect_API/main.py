@@ -294,6 +294,86 @@ async def forgot_password(payload: ForgotPasswordRequestCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Password Reset: finalize using token
+from pydantic import BaseModel, SecretStr
+
+class PasswordResetPayload(BaseModel):
+    token: str
+    new_password: SecretStr | str
+    confirm_password: SecretStr | str
+
+@app.post("/reset-password", status_code=200)
+async def reset_password(body: PasswordResetPayload):
+    """Finalize password reset.
+    Steps:
+    - find token in public."Password_reset_tokens" by token_hash
+    - check not expired and not used
+    - get user_id, update user's password (hashed)
+    - mark token as used
+    """
+    # 1) basic checks
+    # unwrap secretstrs
+    new_pw = body.new_password.get_secret_value() if isinstance(body.new_password, SecretStr) else str(body.new_password)
+    conf_pw = body.confirm_password.get_secret_value() if isinstance(body.confirm_password, SecretStr) else str(body.confirm_password)
+    if new_pw != conf_pw:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+    if len(new_pw) < 6:
+        raise HTTPException(status_code=400, detail="Password too short (min 6 chars)")
+
+    token_hash = _sha256_hex(body.token)
+
+    try:
+        async with Database.pool.acquire() as connection:
+            # 2) find token row
+            token_row = await connection.fetchrow(
+                '''
+                SELECT id, user_id, expires_at, used_at
+                FROM public."Password_reset_tokens"
+                WHERE token_hash = $1
+                LIMIT 1
+                ''',
+                token_hash,
+            )
+            if not token_row:
+                raise HTTPException(status_code=400, detail="Invalid or unknown reset token")
+            if token_row["used_at"] is not None:
+                raise HTTPException(status_code=400, detail="Reset token already used")
+            # check expiry
+            now_utc = datetime.now(timezone.utc)
+            if token_row["expires_at"] < now_utc:
+                raise HTTPException(status_code=400, detail="Reset token expired")
+
+            user_id = token_row["user_id"]
+
+            # 3) hash new password and update user
+            hashed_pw = hash_password(new_pw)
+            await connection.execute(
+                '''
+                UPDATE public."Users"
+                SET password = $1
+                WHERE user_id = $2
+                ''',
+                hashed_pw,
+                user_id,
+            )
+
+            # 4) mark token as used
+            await connection.execute(
+                '''
+                UPDATE public."Password_reset_tokens"
+                SET used_at = NOW()
+                WHERE id = $1
+                ''',
+                token_row["id"],
+            )
+
+            return {"message": "Password has been reset successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Development-only endpoint to preview reset email HTML
 @app.get("/dev/preview/reset-email")
 async def preview_reset_email(email: str = "test@example.com", token: str = "demo-token"):
