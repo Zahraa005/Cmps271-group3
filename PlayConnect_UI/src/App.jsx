@@ -10,6 +10,12 @@ import FriendsPage from "./pages/FriendsPage";
 import EmailVerificationPage from "./pages/EmailVerificationPage";
 import ResetPassword from "./pages/ResetPassword";
 import { AuthProvider } from "./contexts/AuthContext"
+import CoachesListPage from "./pages/CoachesListPage";
+import CoachProfilePage from "./pages/CoachProfilePage";
+import AboutPage from './pages/AboutPage';
+import ContactPage from './pages/ContactPage';
+import FAQPage from './pages/FAQPage';
+
 
 
 function Home() {
@@ -45,6 +51,21 @@ function App() {
            {/* Friends Page route */}
           <Route path="/friends" element={<FriendsPage />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          
+          {/* Coaches List Page route */}
+          <Route path="/coaches" element={<CoachesListPage />} />
+
+          {/* Coach Profile Page route */}
+          <Route path="/coach/:coachId" element={<CoachProfilePage />} />
+
+          {/* About Page route */}
+          <Route path="/about" element={<AboutPage />} />
+
+          {/* Contact Page route */}  
+          <Route path="/contact" element={<ContactPage />} />
+          
+          {/* FAQ Page route */}
+          <Route path="/faq" element={<FAQPage />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
