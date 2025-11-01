@@ -34,6 +34,54 @@ from PlayConnect_API.services.mailer import render_template, send_email
 from datetime import datetime, timezone, timedelta
 import os, secrets, hashlib
 import jwt
+from datetime import datetime, timedelta
+from fastapi import Request
+
+# =======================
+# LOGIN ATTEMPT TRACKING
+# =======================
+FAILED_LOGINS = {}  # {email: {"count": int, "first_fail": datetime}}
+
+MAX_ATTEMPTS = 5
+BLOCK_DURATION = timedelta(seconds=30)   # ⬅️ changed from 15 minutes for testing
+# BLOCK_DURATION = timedelta(minutes=15)  # ⬅️ (keep this commented to restore later)
+
+def check_login_attempt(email: str):
+    """Raise HTTPException if user is temporarily blocked."""
+    entry = FAILED_LOGINS.get(email)
+    if not entry:
+        return
+
+    # if cooldown expired, reset
+    if datetime.utcnow() - entry["first_fail"] > BLOCK_DURATION:
+        FAILED_LOGINS.pop(email, None)
+        return
+
+    if entry["count"] >= MAX_ATTEMPTS:
+        remaining = BLOCK_DURATION - (datetime.utcnow() - entry["first_fail"])
+        mins = int(remaining.total_seconds() // 60) + 1
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many failed login attempts. Try again in {mins} minute(s).",
+        )
+
+def record_failed_login(email: str):
+    """Increment fail counter for an email."""
+    now = datetime.utcnow()
+    entry = FAILED_LOGINS.get(email)
+    if entry:
+        if now - entry["first_fail"] > BLOCK_DURATION:
+            # Reset window
+            FAILED_LOGINS[email] = {"count": 1, "first_fail": now}
+        else:
+            entry["count"] += 1
+    else:
+        FAILED_LOGINS[email] = {"count": 1, "first_fail": now}
+
+def reset_login_attempts(email: str):
+    """Reset after successful login."""
+    FAILED_LOGINS.pop(email, None)
+
 
 
 
@@ -965,7 +1013,14 @@ async def api_leave_game_waitlist(game_id: int, user_id: int):
 
 
 @app.post("/login", response_model=TokenResponse)
-async def login(login_request: LoginRequest):
+async def login(login_request: LoginRequest, request: Request):
+    email = login_request.email
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required for login")
+
+    # Check if blocked before processing
+    check_login_attempt(email)
+
     try:
         async with Database.pool.acquire() as connection:
             # Query user by email including verification status
@@ -975,38 +1030,50 @@ async def login(login_request: LoginRequest):
                 WHERE LOWER(email) = LOWER($1)
             '''
             user = await connection.fetchrow(query, login_request.email)
-            
+
+            # -----------------------------
+            # ADD: record failed login if user not found
+            # -----------------------------
             if not user:
+                record_failed_login(email)
                 raise HTTPException(status_code=401, detail="Invalid email or password")
-            
-            
+
             plain_pw = login_request.password.get_secret_value()
             stored_hash = user["password"]
+
+            # -----------------------------
+            # ADD: record failed login if password invalid
+            # -----------------------------
             if not verify_password(plain_pw, stored_hash):
+                record_failed_login(email)
                 raise HTTPException(status_code=401, detail="Invalid email or password")
-            
+
+            # -----------------------------
+            # ADD: reset failed counter on successful login
+            # -----------------------------
+            reset_login_attempts(email)
+
             # Check if email is verified
             if not user["isverified"]:
-                # Send verification email for existing unverified users
                 await send_verification_email(connection, user["user_id"], user["email"], user["first_name"])
                 raise HTTPException(
-                    status_code=403, 
+                    status_code=403,
                     detail="Please verify your email address. A verification email has been sent to your inbox."
                 )
-            
+
             # Generate JWT token
             secret_key = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
             token_expiry = datetime.utcnow() + timedelta(hours=4)  # 4 hour expiry
-            
+
             token_payload = {
                 "user_id": user["user_id"],
                 "email": user["email"],
-                "role": user["role"],                   #used JWT to track user login and to track who is creating games in the dashboard
+                "role": user["role"],  # used JWT to track user login and dashboard role
                 "exp": token_expiry
             }
-            
+
             access_token = jwt.encode(token_payload, secret_key, algorithm="HS256")
-            
+
             return TokenResponse(
                 access_token=access_token,
                 token_type="bearer",
@@ -1014,7 +1081,7 @@ async def login(login_request: LoginRequest):
                 user_id=user["user_id"],
                 role=user["role"]
             )
-            
+
     except HTTPException:
         raise
     except Exception as e:
