@@ -375,16 +375,18 @@ export default function ProfileCreation() {
               </div>
 
               {/* Step Label */}
-              <span className="text-xs text-neutral-700 dark:text-white/90 min-w-[64px] transition-colors duration-300">
+              <span id="headerlabel" className="text-xs text-neutral-700 dark:text-white/90 min-w-[64px] transition-colors duration-300">
                 {step.label}
               </span>
 
               {/* Connecting line */}
               {idx < arr.length - 1 && (
                 <div
-                  className="mx-1 h-px w-10 bg-neutral-300 dark:bg-white/30 transition-colors duration-300"
+                  id="connectinglines"
+                  className="mx-1 h-px w-10 transition-colors duration-300"
                   aria-hidden
                 />
+
               )}
             </li>
           ))}
