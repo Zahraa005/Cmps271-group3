@@ -192,9 +192,9 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Email */}
           <div>
-            <label className="block text-sm mb-1 text-neutral-800 dark:text-white">Email address</label>
+            <label id="emailaddy" className="block text-sm mb-1 text-neutral-800 dark:text-white">Email address</label>
             <div className="relative">
-              <input
+              <input id="passwordInput"
                 type="email"
                 className={classNames(
                   "w-full rounded-xl border px-4 py-3 outline-none shadow-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-all duration-300 hover:border-violet-400 bg-white text-neutral-900 placeholder-neutral-500 dark:bg-neutral-900/60 dark:text-white",
@@ -220,9 +220,9 @@ export default function LoginPage() {
 
           {/* Password */}
           <div>
-            <label className="block text-sm mb-1 text-neutral-800 dark:text-white">Password</label>
+            <label id="emailaddy" className="block text-sm mb-1 text-neutral-800 dark:text-white">Password</label>
             <div className="relative">
-              <input
+              <input id="passwordInput"
                 type={showPassword ? "text" : "password"}
                 className={classNames(
                   "w-full rounded-xl border px-4 py-3 outline-none shadow-md focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-all duration-300 hover:border-violet-400 bg-white text-neutral-900 placeholder-neutral-500 dark:bg-neutral-900/60 dark:text-white",
