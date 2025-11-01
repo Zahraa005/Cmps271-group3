@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import MatchHistoryPanel from "../components/MatchHistoryPanel";
+import NotificationBell from "../components/NotificationBell";
 
 function classNames(...xs) {
   return xs.filter(Boolean).join(" ");
@@ -68,6 +69,10 @@ export default function DashboardPage() {
   const [total, setTotal] = useState(0);
   const [hasNext, setHasNext] = useState(false);
   const [searchText, setSearchText] = useState("");
+
+  //Notifications
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // Toast cleanup
   useEffect(() => {
@@ -698,6 +703,17 @@ useEffect(() => {
               >
                 Logout
               </button>
+
+              
+              {/* 🔔 Notification Bell */}
+              <NotificationBell
+                count={unreadCount}
+                onClick={() => {
+                  // later: open dropdown / mark as read
+                  console.log("notifications clicked");
+                  // setIsNotifOpen(v => !v);
+                }}
+              />
 
               {/* Profile Circle */}
               <div
