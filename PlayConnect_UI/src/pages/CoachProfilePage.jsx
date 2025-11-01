@@ -10,6 +10,14 @@ export default function CoachProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("user_id");
+    localStorage.removeItem("role");
+    window.location.href = "/login";
+  };
+
+
   useEffect(() => {
     const fetchCoach = async () => {
       try {
@@ -92,9 +100,13 @@ export default function CoachProfilePage() {
           <a href="/dashboard" className="text-white hover:text-neutral-100 text-sm transition">
             Dashboard
           </a>
-          <button className="bg-indigo-500 hover:bg-indigo-600 px-4 py-2 rounded-lg font-semibold text-sm transition text-white">
+          <button
+            onClick={handleLogout}
+            className="bg-indigo-500 hover:bg-indigo-600 px-4 py-2 rounded-lg font-semibold text-sm transition text-white"
+          >
             Logout
           </button>
+
         </div>
       </div>
 
@@ -105,24 +117,34 @@ export default function CoachProfilePage() {
           <div className="bg-gradient-to-r from-indigo-900/40 to-fuchsia-900/40 p-8">
             <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
               {/* Avatar */}
-              <div className="relative">
-                {coach.avatar_url ? (
-                  <img
-                    src={coach.avatar_url}
-                    alt={`${coach.first_name} ${coach.last_name}`}
-                    className="w-32 h-32 rounded-full object-cover border-4 border-neutral-900"
-                  />
-                ) : (
-                  <div className="w-32 h-32 rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center text-white font-bold text-4xl border-4 border-neutral-900">
-                    {getInitials(coach.first_name, coach.last_name)}
-                  </div>
-                )}
-                {coach.isverified && (
-                  <div className="absolute -bottom-2 -right-2 bg-green-500 rounded-full p-2 border-4 border-neutral-900">
-                    <CheckCircle size={24} className="text-white" />
-                  </div>
-                )}
-              </div>
+<div className="relative">
+  {coach.avatar_url && coach.avatar_url.trim() !== "" ? (
+    <img
+      src={coach.avatar_url}
+      alt={`${coach.first_name} ${coach.last_name}`}
+      onError={(e) => {
+        // hide broken image and fallback to initials
+        e.target.style.display = "none";
+        e.target.parentNode.querySelector(".fallback-avatar").style.display = "flex";
+      }}
+      className="w-32 h-32 rounded-full object-cover border-4 border-neutral-900"
+    />
+  ) : null}
+
+  {/* Fallback initials avatar (hidden only when image is shown successfully) */}
+  <div
+    className="fallback-avatar w-32 h-32 rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center text-white font-bold text-4xl border-4 border-neutral-900"
+    style={{ display: coach.avatar_url ? "none" : "flex" }}
+  >
+    {getInitials(coach.first_name, coach.last_name)}
+  </div>
+
+  {coach.isverified && (
+    <div className="absolute -bottom-2 -right-2 bg-green-500 rounded-full p-2 border-4 border-neutral-900">
+      <CheckCircle size={24} className="text-white" />
+    </div>
+  )}
+</div>
 
               {/* Info */}
               <div className="flex-1">

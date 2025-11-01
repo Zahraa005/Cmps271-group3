@@ -7,6 +7,14 @@ export default function CoachesListPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("user_id");
+    localStorage.removeItem("role");
+    window.location.href = "/login";
+  };
+
+
   const API_BASE = "http://127.0.0.1:8000";
 
   // Fetch coaches from backend
@@ -84,9 +92,13 @@ export default function CoachesListPage() {
           <a href="/dashboard" className="text-white hover:text-neutral-100 text-sm transition">
             Dashboard
           </a>
-          <button className="bg-indigo-500 hover:bg-indigo-600 px-4 py-2 rounded-lg font-semibold text-sm transition text-white">
+          <button
+            onClick={handleLogout}
+            className="bg-indigo-500 hover:bg-indigo-600 px-4 py-2 rounded-lg font-semibold text-sm transition text-white"
+          >
             Logout
           </button>
+
         </div>
       </div>
 
