@@ -5,6 +5,8 @@ import { useAuth } from "../contexts/AuthContext";
 import { Link } from "react-router-dom";
 
 
+
+
 export default function HomePage() {
   const videoRef = useRef(null);
   const [revealBall, setRevealBall] = useState(false);
@@ -49,7 +51,10 @@ export default function HomePage() {
         </div>
         <div className="hidden md:flex gap-6 text-lg">
           <a href="/" className="hover:text-indigo-400 transition-colors duration-300">Home</a>
-          <a href="/coaches" className="hover:text-indigo-400 transition-colors duration-300">Coaches</a>
+          <Link to="/coaches" className="hover:text-indigo-400 cursor-pointer transition-colors duration-300">
+            Coaches
+          </Link>
+
           <a href="/games" onClick={goToGames} className="hover:text-indigo-400 transition-colors duration-300">Games</a>
           <Link
             to="/friends"
@@ -266,11 +271,12 @@ export default function HomePage() {
             <div>
               <h3 className="text-lg font-semibold text-white mb-3">Quick Links</h3>
               <div className="space-y-2">
-                <a href="/about" className="block hover:text-white transition-colors">About Us</a>
-                <a href="/contact" className="block hover:text-white transition-colors">Contact</a>
-                <a href="/faq" className="block hover:text-white transition-colors">FAQ</a>
+                <Link to="/about" className="block hover:text-white transition-colors">About Us</Link>
+                <Link to="/contact" className="block hover:text-white transition-colors">Contact</Link>
+                <Link to="/faq" className="block hover:text-white transition-colors">FAQ</Link>
               </div>
             </div>
+  
           </div>
           <div className="border-t border-gray-700 pt-6 text-center">
             <p>&copy; 2025 PlayConnect. All rights reserved.</p>
