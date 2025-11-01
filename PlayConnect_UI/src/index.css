@@ -79,6 +79,19 @@ aside p{
   color: white;
 }
 
+#emailaddy{
+  color: #0a0a0a;
+}
+
+#passwordInput{
+  background-color: white;
+  ;
+}
+
+.dark #emailaddy{
+  color: white;
+}
+
 button #profilecreationtheme{
   color: white;
 }
