@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-
+import ThemeToggle from "../theme/ThemeToggle";
 
 const ALL_SPORTS = [
-  "Football","Basketball","Padel","Tennis","Volleyball","Running","Cycling",
-  "Table Tennis","Badminton","Swimming","Golf","Boxing","MMA","Climbing","Skate",
-  "Rugby","Cricket","Baseball","Hiking","Rowing","Handball","Water Polo","Squash",
+  "Football", "Basketball", "Padel", "Tennis", "Volleyball", "Running", "Cycling",
+  "Table Tennis", "Badminton", "Swimming", "Golf", "Boxing", "MMA", "Climbing", "Skate",
+  "Rugby", "Cricket", "Baseball", "Hiking", "Rowing", "Handball", "Water Polo", "Squash",
 ];
 
 const RESERVED = new Set(["admin", "support", "help", "root", "owner"]);
@@ -115,7 +115,7 @@ export default function ProfileCreation() {
         setUsername(d.username ?? "");
         setBio(d.bio ?? "");
         setSports(Array.isArray(d.sports) ? d.sports.slice(0, 5) : []);
-      } catch {}
+      } catch { }
     }
     // seed from registration if no draft name
     const seedRaw = localStorage.getItem("onboarding_seed");
@@ -124,7 +124,7 @@ export default function ProfileCreation() {
         const seed = JSON.parse(seedRaw);
         const full = [seed.first_name, seed.last_name].filter(Boolean).join(" ").trim();
         if (full) setName(full);
-      } catch {}
+      } catch { }
     }
     setHasLoadedDraft(true);
   }, []);
@@ -221,8 +221,8 @@ export default function ProfileCreation() {
       prev.includes(s)
         ? prev.filter((x) => x !== s)
         : prev.length < 5
-        ? [...prev, s]
-        : prev
+          ? [...prev, s]
+          : prev
     );
 
   useEffect(() => {
@@ -231,7 +231,7 @@ export default function ProfileCreation() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  
+
   const onSave = async () => {
     if (!canSave) return;
     setSaving(true);
@@ -259,7 +259,7 @@ export default function ProfileCreation() {
               setUserDetails(me);
             }
           }
-        } catch {}
+        } catch { }
       }
 
       const effective = userDetails || {};
@@ -304,8 +304,8 @@ export default function ProfileCreation() {
   const previewVisible = previewSports.slice(0, 2);
   const previewHidden = Math.max(0, previewSports.length - 2);
   return (
-    <main className="min-h-screen bg-neutral-950 relative overflow-hidden">
-      
+    <main className="min-h-screen bg-[rgb(var(--pc-bg))] text-neutral-900 dark:text-white relative overflow-hidden transition-colors duration-300">
+
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-20"
@@ -316,35 +316,30 @@ export default function ProfileCreation() {
           backgroundPosition: "0 0, 0 0",
         }}
       />
-    
+
+      {/* Background patterns */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.15] transition-opacity duration-500"
+        style={{
+          backgroundImage:
+            "linear-gradient(var(--pc-grid, rgba(0,0,0,0.05)) 1px, transparent 1px), linear-gradient(90deg, var(--pc-grid, rgba(0,0,0,0.05)) 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+        }}
+      />
+
+      {/* Gradient glow layers */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 mix-blend-screen"
         style={{
           backgroundImage:
-            "radial-gradient(600px 300px at 20% 0%, rgba(167,139,250,0.18), transparent 60%), radial-gradient(600px 300px at 80% 100%, rgba(244,114,182,0.14), transparent 55%)",
+            "radial-gradient(600px 300px at 20% 0%, var(--pc-g1, rgba(167,139,250,0.18)), transparent 60%), radial-gradient(600px 300px at 80% 100%, var(--pc-g2, rgba(244,114,182,0.14)), transparent 55%)",
         }}
       />
-      
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 mix-blend-screen"
-        style={{
-          backgroundImage:
-            "radial-gradient(600px 300px at 20% 0%, rgba(167,139,250,0.18), transparent 60%), radial-gradient(600px 300px at 80% 100%, rgba(244,114,182,0.14), transparent 55%)",
-        }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-5 mix-blend-overlay"
-        style={{
-          backgroundImage:
-            "url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nNScgaGVpZ2h0PSc1JyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnPjxmaWx0ZXIgaWQ9J2EnPjxmZVR1cmJ1bGVuY2UgdHlwZT0ncGVybGluJyBiYXNlRnJlcXVlbmN5PScwLjcnIG51bU9jdGF2ZXM9JzInLz48L2ZpbHRlcj48cmVjdCB3aWR0aD0nNTAnIGhlaWdodD0nNTAnIGZpbHRlcj0ndXJsKCNhKScgZmlsbD0nI2ZmZicvPjwvc3ZnPg==')",
-          backgroundSize: "150px 150px",
-        }}
-      />
-   
-      <div className="px-4 py-4">
+
+      <div className="px-4 py-4 flex items-center justify-between">
+        {/* Step indicators (left side) */}
         <ol className="flex items-center gap-2">
           {[
             { key: 'name', label: 'Name', done: nameOk },
@@ -355,42 +350,72 @@ export default function ProfileCreation() {
             <li key={step.key} className="flex items-center gap-2">
               <div
                 className={classNames(
-                  'h-6 w-6 rounded-full grid place-items-center text-[11px] font-medium',
-                  step.done ? 'bg-violet-500 text-white' : 'bg-white/15 text-white/70 border border-white/25'
+                  'h-6 w-6 rounded-full grid place-items-center text-[11px] font-medium transition-colors duration-300',
+                  step.done
+                    ? 'bg-violet-500 text-white'
+                    : 'bg-neutral-200 dark:bg-white/15 text-neutral-800 dark:text-white/70 border border-neutral-300 dark:border-white/25'
                 )}
                 title={step.label}
               >
                 {step.done ? (
-                  <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="currentColor"><path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7.4 7.4a1 1 0 01-1.4 0L3.3 9.9a1 1 0 111.4-1.4l3 3 6.7-6.7a1 1 0 011.4 0z" clipRule="evenodd"/></svg>
+                  <svg
+                    viewBox="0 0 20 20"
+                    className="h-3.5 w-3.5"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M16.7 5.3a1 1 0 010 1.4l-7.4 7.4a1 1 0 01-1.4 0L3.3 9.9a1 1 0 111.4-1.4l3 3 6.7-6.7a1 1 0 011.4 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
                 ) : (
                   idx + 1
                 )}
               </div>
-              <span className="text-xs text-white/90 min-w-[64px]">{step.label}</span>
+
+              {/* Step Label */}
+              <span className="text-xs text-neutral-700 dark:text-white/90 min-w-[64px] transition-colors duration-300">
+                {step.label}
+              </span>
+
+              {/* Connecting line */}
               {idx < arr.length - 1 && (
-                <div className="mx-1 h-px w-10 bg-white/30" aria-hidden />
+                <div
+                  className="mx-1 h-px w-10 bg-neutral-300 dark:bg-white/30 transition-colors duration-300"
+                  aria-hidden
+                />
               )}
             </li>
           ))}
         </ol>
+
+        {/* Theme toggle (right side) */}
+        <div className="ml-auto">
+          <ThemeToggle />
+        </div>
       </div>
+
+
 
       <div className="mx-auto max-w-7xl px-4 py-8">
         <header className="mb-6">
-          <h1 className="text-3xl font-semibold tracking-tight">Complete your profile</h1>
+          <h1 id="profilecreationtheme" className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-white">
+            Complete your profile
+          </h1>
           <p className="mt-1 text-sm text-neutral-400">Make it easier to find games you’ll love.</p>
         </header>
 
         <div className="grid gap-8 lg:grid-cols-2">
-        
+
           <section className="space-y-6">
             {/* Name */}
             <div>
-              <label className="block text-sm mb-1">Full name</label>
+              <label id="profilecreationtheme" className="block text-sm mb-1">Full name</label>
               <div className="relative">
-                <input
+                <input id="inputUsername"
                   className={classNames(
-                    "w-full rounded-lg bg-neutral-950/70 border px-3 py-3 outline-none shadow-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent",
+                    "w-full rounded-lg bg-white/80 dark:bg-neutral-950/70 border px-3 py-3 outline-none shadow-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent",
                     nameOk
                       ? "border-neutral-800"
                       : "border-rose-500"
@@ -411,29 +436,29 @@ export default function ProfileCreation() {
 
 
             <div>
-              <label className="block text-sm mb-1">Username</label>
+              <label id="profilecreationtheme" className="block text-sm mb-1">Username</label>
               <div className="relative">
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-500 text-base select-none">@</span>
-                <input
+                <input id="inputUsername"
                   className={classNames(
-                    "w-full rounded-lg bg-neutral-950/70 border pl-7 pr-9 py-3 outline-none shadow-sm focus:ring-2 focus:ring-violet-500",
+                    "w-full rounded-lg bg-white/80 dark:bg-neutral-950/70 border pl-7 pr-9 py-3 outline-none shadow-sm focus:ring-2 focus:ring-violet-500",
                     uStatus === "ok"
                       ? "border-neutral-800"
                       : uStatus === "idle" || uStatus === "checking"
-                      ? "border-neutral-800"
-                      : "border-rose-500"
+                        ? "border-neutral-800"
+                        : "border-rose-500"
                   )}
                   placeholder="username"
                   value={username}
                   maxLength={20}
                   onChange={(e) => setUsername(e.target.value.toLowerCase())}
                 />
-             
+
                 <div className="pointer-events-none absolute right-2 top-0 h-full flex items-center">
                   {uStatus === "checking" && (
                     <svg className="h-4 w-4 animate-spin text-neutral-400" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                     </svg>
                   )}
                   {uStatus === "ok" && (
@@ -441,9 +466,9 @@ export default function ProfileCreation() {
                       <path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7.4 7.4a1 1 0 01-1.4 0L3.3 9.9a1 1 0 111.4-1.4l3 3 6.7-6.7a1 1 0 011.4 0z" clipRule="evenodd" />
                     </svg>
                   )}
-                  {["invalid","reserved","taken"].includes(uStatus) && (
+                  {["invalid", "reserved", "taken"].includes(uStatus) && (
                     <svg className="h-5 w-5 text-rose-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1-5h2v2H9v-2zm0-8h2v6H9V5z" clipRule="evenodd"/>
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1-5h2v2H9v-2zm0-8h2v6H9V5z" clipRule="evenodd" />
                     </svg>
                   )}
                 </div>
@@ -451,8 +476,8 @@ export default function ProfileCreation() {
               <p className="mt-2 text-xs text-neutral-500">
                 3–20 chars. lowercase letters, numbers, dot, underscore. No leading/trailing or double `.`/`_`.
               </p>
-            
-              {["invalid","reserved","taken"].includes(uStatus) && (
+
+              {["invalid", "reserved", "taken"].includes(uStatus) && (
                 <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-400">
                   Try:{" "}
                   {suggestUsernames(name, username).map((s, i) => (
@@ -469,9 +494,9 @@ export default function ProfileCreation() {
               )}
             </div>
 
-        
+
             <div>
-              <label className="block text-sm mb-1">Profile picture</label>
+              <label id="profilecreationtheme" className="block text-sm mb-1">Profile picture</label>
               <div className="flex items-center gap-4">
                 <div className="relative h-16 w-16 rounded-full p-[2px]"
                   style={{ background: 'conic-gradient(from 180deg at 50% 50%, #a78bfa, #f472b6, #f59e0b, #a78bfa)' }}>
@@ -484,7 +509,7 @@ export default function ProfileCreation() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <div className="font-medium">Upload or drag a square image</div>
+                  <div className="font-medium"><p>Upload or drag a square image</p></div>
                   <div className="text-xs text-white/70 mb-1">PNG/JPG • Min 256×256 • Shows on your games</div>
                   <div className="flex gap-2">
                     <input
@@ -517,12 +542,12 @@ export default function ProfileCreation() {
 
             {/* Bio */}
             <div>
-              <label className="block text-sm mb-1">Bio</label>
+              <label id="profilecreationtheme" className="block text-sm mb-1">Bio</label>
               <div className="relative">
-                <textarea
+                <textarea id="inputUsername"
                   rows={3}
                   className={classNames(
-                    "w-full rounded-lg bg-neutral-950/70 border px-3 py-3 outline-none shadow-sm focus:ring-2 focus:ring-violet-500",
+                    "w-full rounded-lg bg-white/80 dark:bg-neutral-950/70 border px-3 py-3 outline-none shadow-sm focus:ring-2 focus:ring-violet-500",
                     bioOk ? "border-neutral-800" : "border-rose-500"
                   )}
                   placeholder="Tell others about you (max 160 chars)"
@@ -538,9 +563,9 @@ export default function ProfileCreation() {
 
             {/* Role */}
             <div>
-              <label className="block text-sm mb-1">Role</label>
-              <select
-                className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-3 outline-none shadow-sm focus:ring-2 focus:ring-violet-500"
+              <label id="profilecreationtheme" className="block text-sm mb-1">Role</label>
+              <select id="inputUsername"
+                className="w-full rounded-lg bg-white/80 dark:bg-neutral-950/70 border border-neutral-800 px-3 py-3 outline-none shadow-sm focus:ring-2 focus:ring-violet-500"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
               >
@@ -553,15 +578,15 @@ export default function ProfileCreation() {
             {/* Sports */}
             <div>
               <div className="flex items-end justify-between gap-3">
-                <label className="block text-sm">Follow sports (pick up to 5)</label>
+                <label id="profilecreationtheme" className="block text-sm">Follow sports (pick up to 5)</label>
                 <div className="w-48">
-                  <input
-                    className="w-full rounded-lg bg-neutral-900 border border-neutral-800 px-3 py-1.5 text-sm outline-none
-                               focus:ring-2 focus:ring-neutral-700 focus:border-transparent transition"
-                    placeholder="Search sports…"
+                  <input id="inputUsername"
+                    className="w-full rounded-lg bg-white/80 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 px-3 py-1.5 text-sm text-neutral-900 dark:text-white placeholder-neutral-500 dark:placeholder-neutral-400 outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                    placeholder="Search sport"
                     value={sportQuery}
                     onChange={(e) => setSportQuery(e.target.value)}
                   />
+
                 </div>
               </div>
 
@@ -609,7 +634,7 @@ export default function ProfileCreation() {
             {/* Actions — mobile sticky */}
             <div className="lg:hidden sticky bottom-0 left-0 right-0 -mx-4 border-t border-neutral-800 bg-neutral-950/90 backdrop-blur-sm px-4 py-4">
               <div className="flex gap-3">
-                <button
+                <button id="profilecreationtheme"
                   onClick={onSave}
                   disabled={!canSave}
                   className={
@@ -621,8 +646,9 @@ export default function ProfileCreation() {
                   {saving ? "Saving…" : "Save & Continue"}
                 </button>
                 <button
-                  type="button"
-                  className="appearance-none rounded-xl px-4 py-2 text-neutral-300 hover:text-neutral-100 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-700 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-950"
+                  type="button" id="profilecreationtheme"
+                  className="appearance-none rounded-xl px-4 py-2 text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100
+ transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-700 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-950"
                 >
                   Skip for now
                 </button>
@@ -631,10 +657,10 @@ export default function ProfileCreation() {
                 <p className="mt-2 text-xs text-rose-400">{error}</p>
               )}
             </div>
-            
+
             {/* Actions — desktop inline */}
             <div className="hidden lg:flex gap-3 pt-2">
-              <button
+              <button id="profilecreationtheme"
                 onClick={onSave}
                 disabled={!canSave}
                 className={
@@ -646,8 +672,9 @@ export default function ProfileCreation() {
                 {saving ? "Saving…" : "Save & Continue"}
               </button>
               <button
-                type="button"
-                className="appearance-none rounded-xl px-4 py-2 text-neutral-300 hover:text-neutral-100 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-700 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-950"
+                type="button" id="profilecreationtheme"
+                className="appearance-none rounded-xl px-4 py-2 text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100
+ transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-700 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-950"
               >
                 Skip for now
               </button>
@@ -658,11 +685,11 @@ export default function ProfileCreation() {
           </section>
 
           {/* --------- RIGHT: PREVIEW --------- */}
-          <aside className="rounded-xl border border-neutral-800 bg-neutral-900/80 p-4 max-h-60 overflow-hidden">
+          <aside className="rounded-xl border border-neutral-300 dark:border-neutral-800 bg-neutral-100/80 dark:bg-neutral-900/80 p-4 max-h-60 overflow-hidden transition-colors duration-300">
             <div className="flex items-center gap-4">
               <div className="h-10 w-10 rounded-full overflow-hidden bg-neutral-800 flex items-center justify-center">
                 {avatarUrl ? (
-                  <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover"/>
+                  <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
                 ) : initials}
               </div>
               <div className="min-w-0">
@@ -676,7 +703,7 @@ export default function ProfileCreation() {
             </div>
 
             <p
-              className="mt-3 text-sm text-neutral-300 leading-snug whitespace-pre-wrap break-words clamp-2"
+              id="biography" className="mt-3 text-sm text-neutral-300 leading-snug whitespace-pre-wrap break-words clamp-2"
               style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
             >
               {bio || "Your short bio will appear here."}
