@@ -18,3 +18,13 @@ class CoachRead(BaseModel):
     isverified: bool
     hourly_rate: Optional[Decimal] = None
     created_at: datetime
+
+    # ✅ extra optional fields the Frontend expects
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    favorite_sport: Optional[str] = None
+    avatar_url: Optional[str] = None
+    bio: Optional[str] = None
+
+    class Config:
+        orm_mode = True

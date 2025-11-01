@@ -511,15 +511,65 @@ async def create_user(user: UserCreate):
         raise HTTPException(status_code=500, detail=str(e))
     
 #coaches endpoints
-@app.get("/coaches", response_model=List[CoachRead])
+@app.get("/coaches")
 async def get_coaches():
     try:
         async with Database.pool.acquire() as connection:
-            rows = await connection.fetch('SELECT * FROM public."Coaches"')
-            coaches = [CoachRead(**dict(row)) for row in rows]
-            return coaches
+            query = '''
+                SELECT 
+                    c.coach_id,
+                    c.experience_yrs,
+                    c.certifications,
+                    c.isverified,
+                    c.hourly_rate,
+                    c.created_at,
+                    u.first_name,
+                    u.last_name,
+                    u.avatar_url,
+                    u.bio,
+                    u.favorite_sport,
+                    u.email
+                FROM public."Coaches" c
+                LEFT JOIN public."Users" u ON c.coach_id = u.user_id
+                ORDER BY c.created_at DESC
+            '''
+            rows = await connection.fetch(query)
+            return [dict(row) for row in rows]
     except Exception as e:
+        print("🔥 ERROR in /coaches:", e)
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/coaches/{coach_id}")
+async def get_coach_by_id(coach_id: int):
+    try:
+        async with Database.pool.acquire() as connection:
+            query = '''
+                SELECT 
+                    c.coach_id,
+                    c.experience_yrs,
+                    c.certifications,
+                    c.isverified,
+                    c.hourly_rate,
+                    c.created_at,
+                    u.first_name,
+                    u.last_name,
+                    u.avatar_url,
+                    u.bio,
+                    u.favorite_sport,
+                    u.email
+                FROM public."Coaches" c
+                LEFT JOIN public."Users" u ON c.coach_id = u.user_id
+                WHERE c.coach_id = $1
+            '''
+            row = await connection.fetchrow(query, coach_id)
+            if not row:
+                raise HTTPException(status_code=404, detail="Coach not found")
+            return dict(row)
+    except Exception as e:
+        print("🔥 ERROR:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 
 
 @app.post("/profile-creation", response_model=UserRead, status_code=200)
