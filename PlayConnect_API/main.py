@@ -10,8 +10,7 @@ from PlayConnect_API.Database import connect_to_db, disconnect_db
 from PlayConnect_API import Database
 from PlayConnect_API.schemas.registration import RegisterRequest
 
-
-from PlayConnect_API.schemas.Coaches import CoachRead, CoachCreate 
+from PlayConnect_API.schemas.Coaches import CoachRead, CoachCreate, CoachVerifyUpdate, CoachUpdate 
 from PlayConnect_API.schemas.User_stats import UserStatCreate, UserStatRead
 from PlayConnect_API.schemas.Game_Instance import GameInstanceCreate, GameInstanceResponse
 from PlayConnect_API.schemas.ForgotPasswordRequest import ForgotPasswordRequestCreate
@@ -743,6 +742,70 @@ async def create_coach(coach: CoachCreate):
             )
             return CoachRead(**dict(row))
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.put("/coaches/{coach_id}/verification", response_model=CoachRead)
+async def verify_coach(coach_id: int, body: CoachVerifyUpdate):
+    try:
+        async with Database.pool.acquire() as connection:
+            # Ensure the coach exists and check current status
+            row = await connection.fetchrow(
+                '''
+                SELECT c.coach_id, c.isverified
+                FROM public."Coaches" c
+                WHERE c.coach_id = $1
+                ''',
+                coach_id
+            )
+            if not row:
+                raise HTTPException(status_code=404, detail="Coach not found")
+
+            if row["isverified"] is True:
+                # Idempotent: already verified — return full resource
+                full = await connection.fetchrow(
+                    '''
+                    SELECT
+                      c.coach_id, c.experience_yrs, c.certifications, c.isverified,
+                      c.hourly_rate, c.created_at,
+                      u.first_name, u.last_name, u.avatar_url, u.bio, u.favorite_sport, u.email
+                    FROM public."Coaches" c
+                    LEFT JOIN public."Users" u ON c.coach_id = u.user_id
+                    WHERE c.coach_id = $1
+                    ''',
+                    coach_id
+                )
+                return CoachRead(**dict(full))
+
+            # Transition pending(False) -> verified(True)
+            updated = await connection.fetchrow(
+                '''
+                UPDATE public."Coaches"
+                SET isverified = TRUE
+                WHERE coach_id = $1
+                RETURNING coach_id, experience_yrs, certifications, isverified, hourly_rate, created_at
+                ''',
+                coach_id
+            )
+
+            # Return the joined shape your GETs already use
+            full = await connection.fetchrow(
+                '''
+                SELECT
+                  c.coach_id, c.experience_yrs, c.certifications, c.isverified,
+                  c.hourly_rate, c.created_at,
+                  u.first_name, u.last_name, u.avatar_url, u.bio, u.favorite_sport, u.email
+                FROM public."Coaches" c
+                LEFT JOIN public."Users" u ON c.coach_id = u.user_id
+                WHERE c.coach_id = $1
+                ''',
+                updated["coach_id"]
+            )
+
+            return CoachRead(**dict(full))
+    except HTTPException:
+        raise
+    except Exception as e:
+        print("🔥 ERROR in /coaches/{coach_id}/verification:", e)
         raise HTTPException(status_code=500, detail=str(e))
     
 #USER_STATS endpoints

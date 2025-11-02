@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 __all__ = ["CoachCreate", "CoachRead"]
 
@@ -39,3 +40,8 @@ class CoachRead(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class CoachVerifyUpdate(BaseModel):
+    # Only allow turning verification ON via this endpoint
+    isverified: Literal[True]
