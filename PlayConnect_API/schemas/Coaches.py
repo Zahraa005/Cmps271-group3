@@ -11,6 +11,17 @@ class CoachCreate(BaseModel):
     isverified: bool = False
     hourly_rate: Optional[Decimal] = None
 
+class CoachUpdate(BaseModel):
+    experience_yrs: Optional[int] = None
+    certifications: Optional[str] = None
+    isverified: Optional[bool] = None
+    hourly_rate: Optional[Decimal] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    favorite_sport: Optional[str] = None
+    avatar_url: Optional[str] = None
+    bio: Optional[str] = None
+
 class CoachRead(BaseModel):
     coach_id: int
     experience_yrs: Optional[int] = None
