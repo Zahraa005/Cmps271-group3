@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import MatchHistoryPanel from "../components/MatchHistoryPanel";
-import NotificationBell from "../components/NotificationBell";
 
 function classNames(...xs) {
   return xs.filter(Boolean).join(" ");
@@ -705,15 +704,36 @@ useEffect(() => {
               </button>
 
               
-              {/* 🔔 Notification Bell */}
-              <NotificationBell
-                count={unreadCount}
-                onClick={() => {
-                  // later: open dropdown / mark as read
-                  console.log("notifications clicked");
-                  // setIsNotifOpen(v => !v);
-                }}
-              />
+              {/* Notification Circle (inline) */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    console.log("notifications clicked");
+                    // TODO: open dropdown / mark as read
+                  }}
+                  onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && console.log("notifications clicked")}
+                  title="Notifications"
+                  aria-label="Notifications"
+                  className="relative w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center
+                            text-white font-semibold text-sm hover:bg-neutral-700 cursor-pointer transition-colors"
+                >
+                  {/* Bell icon (SVG, no extra libs) */}
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 0 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5" />
+                    <path d="M9 17a3 3 0 0 0 6 0" />
+                  </svg>
+
+                  {/* Unread badge */}
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 inline-flex items-center justify-center
+                                    h-5 min-w-[20px] px-1 rounded-full bg-violet-500 text-white
+                                    text-[10px] font-semibold shadow">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </div>
+
 
               {/* Profile Circle */}
               <div
