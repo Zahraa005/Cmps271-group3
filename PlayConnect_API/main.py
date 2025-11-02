@@ -1439,6 +1439,36 @@ async def create_report(report: ReportCreate):
             )
             if not row:
                 raise HTTPException(status_code=500, detail="Failed to create report")
+
+            # --- Send confirmation email ---
+            try:
+                # Fetch reporter info
+                user_row = await connection.fetchrow(
+                    'SELECT email, first_name FROM public."Users" WHERE user_id = $1 LIMIT 1',
+                    report.reporter_id
+                )
+                # Fetch reported user info
+                reported_row = await connection.fetchrow(
+                    'SELECT first_name FROM public."Users" WHERE user_id = $1 LIMIT 1',
+                    report.reported_user_id
+                )
+
+                if user_row:
+                    user_email = user_row["email"]
+                    first_name = user_row["first_name"] or "Player"
+                    reported_user_name = reported_row["first_name"] if reported_row else "the user"
+
+                    context = {
+                        "first_name": first_name,
+                        "report_id": row["report_id"],
+                        "reported_user_name": reported_user_name,
+                        "reason": report.reason
+                    }
+                    html = render_template("PlayConnect_API/templates/emails/report_receipt.html", context)
+                    await send_email(user_email, "Your report has been received", html)
+            except Exception as email_err:
+                print(f"[DEV ONLY] Failed to send report receipt email: {repr(email_err)}")
+
             return ReportRead(**dict(row))
     except HTTPException:
         raise
