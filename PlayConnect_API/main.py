@@ -1886,6 +1886,7 @@ async def delete_friend(user_id: int, friend_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # -------------------------------
 # GET /friends/my  -> Accepted friends for me (include OTHER profile)
 # -------------------------------
@@ -1974,46 +1975,6 @@ async def requests_received(user_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 # -------------------------------
-# GET /friends/sent  -> Pending requests I SENT
-# -------------------------------
-@app.get("/friends/sent", response_model=List[FriendEdge])
-async def requests_sent(user_id: int):
-    """
-    Pending requests SENT by user_id.
-    Shows ONLY the OTHER user (the receiver) in `friend`.
-    """
-    try:
-        async with Database.pool.acquire() as connection:
-            rows = await connection.fetch(
-                '''
-                SELECT f.status, f.created_at,
-                       u.user_id, u.email, u.first_name, u.last_name, u.avatar_url, u.favorite_sport
-                FROM public."Friends" f
-                JOIN public."Users"  u ON u.user_id = f.friend_id
-                WHERE f.status = 'pending' AND f.user_id = $1
-                ORDER BY f.created_at DESC
-                ''',
-                user_id
-            )
-            return [
-                {
-                    "status": r["status"],
-                    "created_at": r["created_at"],
-                    "friend": {
-                        "user_id": r["user_id"],
-                        "email": r["email"],
-                        "first_name": r["first_name"],
-                        "last_name": r["last_name"],
-                        "avatar_url": r["avatar_url"],
-                        "favorite_sport": r["favorite_sport"],
-                    }
-                }
-                for r in rows
-            ]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# -------------------------------
 # GET /friends/find  -> Users with NO relation to me (discover)
 # -------------------------------
 @app.get("/friends/find", response_model=List[FriendPerson])
@@ -2068,27 +2029,46 @@ async def find_friends(user_id: int, query: Union[str, None] = None, limit: int 
             return [FriendPerson(**dict(r)) for r in rows]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 # -------------------------------
-# GET /friends/sent -> Pending requests I sent
+# GET /friends/sent  -> Pending requests I SENT
 # -------------------------------
-@app.get("/friends/sent", response_model=List[int])
-async def sent_requests(user_id: int):
+@app.get("/friends/sent", response_model=List[FriendEdge])
+async def requests_sent(user_id: int):
     """
-    Return list of friend_ids to whom this user has SENT a pending request.
-    (i.e. rows where user_id = ME AND status='pending')
+    Pending requests SENT by user_id.
+    Shows ONLY the OTHER user (the receiver) in `friend`.
+    Same structure as /friends/requests for consistent frontend use.
     """
     try:
         async with Database.pool.acquire() as connection:
             rows = await connection.fetch(
                 '''
-                SELECT friend_id
-                FROM public."Friends"
-                WHERE user_id = $1 AND status = 'pending'
+                SELECT f.status, f.created_at,
+                       u.user_id, u.email, u.first_name, u.last_name, u.avatar_url, u.favorite_sport
+                FROM public."Friends" f
+                JOIN public."Users" u ON u.user_id = f.friend_id
+                WHERE f.status = 'pending' AND f.user_id = $1
+                ORDER BY f.created_at DESC
                 ''',
                 user_id
             )
-        return [r["friend_id"] for r in rows]
+
+            return [
+                {
+                    "status": r["status"],
+                    "created_at": r["created_at"],
+                    "friend": {
+                        "user_id": r["user_id"],
+                        "email": r["email"],
+                        "first_name": r["first_name"],
+                        "last_name": r["last_name"],
+                        "avatar_url": r["avatar_url"],
+                        "favorite_sport": r["favorite_sport"],
+                    },
+                }
+                for r in rows
+            ]
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
