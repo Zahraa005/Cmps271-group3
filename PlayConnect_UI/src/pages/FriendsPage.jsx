@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Search, UserPlus, UserCheck, X } from "lucide-react";
+import ViewProfile from "../components/ViewProfile";
+
 
 /**
  * HOW WE GET THE LOGGED-IN USER:
@@ -43,6 +45,10 @@ export default function FriendsPage() {
   const [profileLoading, setProfileLoading] = useState(false);
 
   const currentUserId = useCurrentUserId();
+
+  const [showViewProfile, setShowViewProfile] = useState(false);
+  const [viewUserId, setViewUserId] = useState(null);
+  const [viewInitialUser, setViewInitialUser] = useState(null);
 
   // ---------- Helpers ----------
   const getInitials = (name) => {
@@ -285,19 +291,32 @@ export default function FriendsPage() {
     return (
       <div className="group bg-neutral-900 border border-neutral-800 rounded-xl p-5 shadow-lg hover:shadow-fuchsia-900/50 hover:border-fuchsia-800/50 transition-all duration-300 hover:-translate-y-1">
         {/* Avatar + Name */}
-        <div className="flex items-start gap-4 mb-4">
+          <div className="flex items-start gap-4 mb-4">
           <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
             {person.avatar_url ? (
               <img
                 src={person.avatar_url}
                 alt={displayName}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition"
+                onClick={() => {
+                  setViewUserId(person.user_id);
+                  setViewInitialUser(person);
+                  setShowViewProfile(true);
+                }}
               />
             ) : (
-              <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center text-white font-bold text-sm">
+              <div
+                onClick={() => {
+                  setViewUserId(person.user_id);
+                  setViewInitialUser(person);
+                  setShowViewProfile(true);
+                }}
+                className="w-full h-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center text-white font-bold text-sm cursor-pointer hover:opacity-80 transition"
+              >
                 {getInitials(displayName)}
               </div>
             )}
+
           </div>
 
           <div className="flex-1 min-w-0">
@@ -674,6 +693,14 @@ export default function FriendsPage() {
             )}
           </div>
         </div>
+      )}
+      {showViewProfile && (
+        <ViewProfile
+          userId={viewUserId}
+          initialUser={viewInitialUser}
+          currentUserId={currentUserId}
+          onClose={() => setShowViewProfile(false)}
+        />
       )}
     </div>
   );
