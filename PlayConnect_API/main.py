@@ -730,18 +730,148 @@ async def create_coach(coach: CoachCreate):
     try:
         async with Database.pool.acquire() as connection:
             query = '''
-                INSERT INTO public."Coaches" (experience_yrs, certifications, isverified, hourly_rate)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO public."Coaches" (coach_id, experience_yrs, certifications, isverified, hourly_rate)
+                VALUES ($1, $2, $3, $4, $5)
                 RETURNING coach_id, experience_yrs, certifications, isverified, hourly_rate, created_at
             '''
             row = await connection.fetchrow(
                 query,
+                coach.user_id,
                 coach.experience_yrs,
                 coach.certifications,
                 coach.isverified,
                 coach.hourly_rate
             )
             return CoachRead(**dict(row))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/coaches/{coach_id}", response_model=CoachRead)
+async def update_coach(coach_id: int, coach_update: CoachUpdate):
+    try:
+        async with Database.pool.acquire() as connection:
+            # Check if coach exists
+            coach_exists = await connection.fetchrow(
+                '''
+                SELECT coach_id FROM public."Coaches"
+                WHERE coach_id = $1
+                ''',
+                coach_id
+            )
+            if not coach_exists:
+                raise HTTPException(status_code=404, detail="Coach not found")
+
+            # Build dynamic UPDATE query for Coaches table
+            coach_updates = []
+            coach_params = []
+            param_num = 1
+
+            if coach_update.experience_yrs is not None:
+                coach_updates.append("experience_yrs = $" + str(param_num))
+                coach_params.append(coach_update.experience_yrs)
+                param_num += 1
+
+            if coach_update.certifications is not None:
+                coach_updates.append("certifications = $" + str(param_num))
+                coach_params.append(coach_update.certifications)
+                param_num += 1
+
+            if coach_update.hourly_rate is not None:
+                coach_updates.append("hourly_rate = $" + str(param_num))
+                coach_params.append(coach_update.hourly_rate)
+                param_num += 1
+
+            # Note: isverified is intentionally excluded - use /coaches/{coach_id}/verification endpoint instead
+
+            # Update Coaches table if there are fields to update
+            if coach_updates:
+                coach_query = f'''
+                    UPDATE public."Coaches"
+                    SET {', '.join(coach_updates)}
+                    WHERE coach_id = $''' + str(param_num)
+                coach_params.append(coach_id)
+                await connection.execute(coach_query, *coach_params)
+
+            # Build dynamic UPDATE query for Users table
+            user_updates = []
+            user_params = []
+            user_param_num = 1
+
+            if coach_update.first_name is not None:
+                user_updates.append("first_name = $" + str(user_param_num))
+                user_params.append(coach_update.first_name)
+                user_param_num += 1
+
+            if coach_update.last_name is not None:
+                user_updates.append("last_name = $" + str(user_param_num))
+                user_params.append(coach_update.last_name)
+                user_param_num += 1
+
+            if coach_update.favorite_sport is not None:
+                user_updates.append("favorite_sport = $" + str(user_param_num))
+                user_params.append(coach_update.favorite_sport)
+                user_param_num += 1
+
+            if coach_update.avatar_url is not None:
+                user_updates.append("avatar_url = $" + str(user_param_num))
+                user_params.append(coach_update.avatar_url)
+                user_param_num += 1
+
+            if coach_update.bio is not None:
+                user_updates.append("bio = $" + str(user_param_num))
+                user_params.append(coach_update.bio)
+                user_param_num += 1
+
+            # Update Users table if there are fields to update
+            if user_updates:
+                user_query = f'''
+                    UPDATE public."Users"
+                    SET {', '.join(user_updates)}
+                    WHERE user_id = $''' + str(user_param_num)
+                user_params.append(coach_id)
+                await connection.execute(user_query, *user_params)
+
+            # Return the updated coach with joined user data
+            full = await connection.fetchrow(
+                '''
+                SELECT
+                  c.coach_id, c.experience_yrs, c.certifications, c.isverified,
+                  c.hourly_rate, c.created_at,
+                  u.first_name, u.last_name, u.avatar_url, u.bio, u.favorite_sport, u.email
+                FROM public."Coaches" c
+                LEFT JOIN public."Users" u ON c.coach_id = u.user_id
+                WHERE c.coach_id = $1
+                ''',
+                coach_id
+            )
+
+            return CoachRead(**dict(full))
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"🔥 ERROR in PUT /coaches/{coach_id}:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.delete("/coaches/{coach_id}", status_code=200)
+async def delete_coach(coach_id: int):
+    try:
+        async with Database.pool.acquire() as connection:
+            # Ensure coach exists
+            exists = await connection.fetchrow(
+                'SELECT coach_id FROM public."Coaches" WHERE coach_id = $1 LIMIT 1',
+                coach_id
+            )
+            if not exists:
+                raise HTTPException(status_code=404, detail="Coach not found")
+
+            # Delete coach record
+            await connection.execute(
+                'DELETE FROM public."Coaches" WHERE coach_id = $1',
+                coach_id
+            )
+            return {"message": "Coach listing deleted", "coach_id": coach_id}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     

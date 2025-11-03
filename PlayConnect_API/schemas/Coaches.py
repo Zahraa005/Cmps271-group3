@@ -7,6 +7,7 @@ from typing import Literal
 __all__ = ["CoachCreate", "CoachRead"]
 
 class CoachCreate(BaseModel):
+    user_id: int
     experience_yrs: Optional[int] = None
     certifications: Optional[str] = None
     isverified: bool = False
