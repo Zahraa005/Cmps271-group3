@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { Search, Star, MapPin, Award, ChevronRight } from "lucide-react";
+import VerificationRequestModal from "../components/VerificationRequestModal";
 
 export default function CoachesListPage() {
   const [search, setSearch] = useState("");
   const [coaches, setCoaches] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+
 
   const handleLogout = () => {
     localStorage.removeItem("access_token");
@@ -76,29 +79,47 @@ export default function CoachesListPage() {
         }}
       />
 
-      {/* === Navbar === */}
+            {/* === Navbar === */}
       <div className="flex justify-between items-center py-5 px-10 relative z-10">
-        <a href="/" className="flex items-center gap-2 text-2xl font-bold hover:opacity-90 transition-opacity">
+        <a
+          href="/"
+          className="flex items-center gap-2 text-2xl font-bold hover:opacity-90 transition-opacity"
+        >
           <span className="bg-gradient-to-r from-indigo-400 via-fuchsia-500 to-purple-500 bg-clip-text text-transparent">
             PlayConnect
           </span>
           <span>🏀🎾</span>
         </a>
 
-        <div className="flex items-center gap-5">
-          <a href="/" className="text-white hover:text-neutral-100 text-sm transition">
+        <div className="flex items-center gap-4">
+          <a
+            href="/"
+            className="text-white hover:text-neutral-100 text-sm transition"
+          >
             ← Back to Home
           </a>
-          <a href="/dashboard" className="text-white hover:text-neutral-100 text-sm transition">
+          <a
+            href="/dashboard"
+            className="text-white hover:text-neutral-100 text-sm transition"
+          >
             Dashboard
           </a>
+
+          {/* ✅ Request Verification Button */}
+          <button
+            onClick={() => setShowVerifyModal(true)}
+            className="bg-gradient-to-r from-indigo-500/90 to-fuchsia-500/90 hover:from-indigo-600 hover:to-fuchsia-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-2 shadow-lg shadow-fuchsia-500/20 border border-fuchsia-500/20"
+          >
+            <CheckCircle size={16} />
+            Request Verification
+          </button>
+
           <button
             onClick={handleLogout}
-            className="bg-indigo-500 hover:bg-indigo-600 px-4 py-2 rounded-lg font-semibold text-sm transition text-white"
+            className="bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded-lg font-semibold text-sm transition text-white"
           >
             Logout
           </button>
-
         </div>
       </div>
 
@@ -211,6 +232,14 @@ export default function CoachesListPage() {
           </div>
         )}
       </div>
+      {/* ✅ Verification Modal */}
+        {showVerifyModal && (
+          <VerificationRequestModal
+            isOpen={showVerifyModal}
+            onClose={() => setShowVerifyModal(false)}
+  />
+)}
+
     </div>
   );
 }
