@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 import { listNotifications, markRead } from "../Api/notifications";
-import ToastPortal, { pushToast, notifEvents } from "./ToastPortal";
+import { pushToast, notifEvents } from "./ToastPortal";
 
-const POLL_MS = 5000;
+const POLL_MS = 12000; // slower poll so it's calmer
+const seen = new Set(); // in-memory dedupe
 
 export default function NotificationsPoller({ userId }) {
   const lastSeenId = useRef(null);
@@ -11,34 +12,63 @@ export default function NotificationsPoller({ userId }) {
   useEffect(() => {
     stopped.current = false;
 
+    // Pause when tab is hidden
+    const onVis = () => {
+      if (document.hidden) return;
+      // kick a tick when tab refocuses
+      tick();
+    };
+    document.addEventListener("visibilitychange", onVis);
+
     async function tick() {
+      if (stopped.current || document.hidden) {
+        // don’t poll while hidden; saves spam and battery
+        schedule();
+        return;
+      }
       try {
         const items = await listNotifications({
           userId,
           unreadOnly: true,
           sinceId: lastSeenId.current,
-          limit: 50
+          limit: 50,
         });
 
-        for (const n of items) {
-          // track max id
-          lastSeenId.current = Math.max(lastSeenId.current ?? 0, n.notification_id);
-          // pop toast
-          pushToast({ title: prettyTitle(n.type), body: n.message });
-          // mark read so we don't pop again
-          markRead(n.notification_id).catch(() => {});
-        }
+        if (items.length) {
+          // advance lastSeenId first
+          const maxId = Math.max(...items.map(n => n.notification_id), lastSeenId.current ?? 0);
+          lastSeenId.current = maxId;
 
-        if (items.length > 0) notifEvents.bump();
+          for (const n of items) {
+            if (seen.has(n.notification_id)) continue; // don’t double-pop
+            seen.add(n.notification_id);
+
+            pushToast({ title: prettyTitle(n.type), body: n.message });
+
+            // mark read so it won't come back next poll
+            markRead(n.notification_id).catch(() => {});
+          }
+
+          notifEvents.bump(); // refresh bell count
+        }
       } catch (_) {
-        // silent retry
+        // silent
       } finally {
-        if (!stopped.current) setTimeout(tick, POLL_MS);
+        schedule();
       }
     }
 
+    function schedule() {
+      if (!stopped.current) setTimeout(tick, POLL_MS);
+    }
+
+    // initial tick
     tick();
-    return () => { stopped.current = true; };
+
+    return () => {
+      stopped.current = true;
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, [userId]);
 
   return null;

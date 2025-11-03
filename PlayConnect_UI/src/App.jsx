@@ -39,11 +39,6 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-         {/* ADD: lightweight header with the bell */}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, padding: 12 }}>
-         {userId ? <NotificationBell userId={userId} /> : null}
-        </div>
-
         <Routes>
           {/* homepage */}
           <Route path="/" element={<HomePage />} />

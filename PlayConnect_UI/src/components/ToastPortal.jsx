@@ -22,14 +22,46 @@ export default function ToastPortal() {
   }, []);
 
   return createPortal(
-    <div style={{ position:"fixed", top:16, right:16, zIndex:9999, display:"flex", flexDirection:"column", gap:12 }}>
-      {toasts.map(t => (
-        <div key={t.id} style={{ maxWidth:360, border:"1px solid #e5e7eb", background:"#fff", borderRadius:16, boxShadow:"0 6px 22px rgba(0,0,0,0.12)", padding:14 }}>
-          <div style={{ fontWeight:600 }}>{t.title || "Notification"}</div>
-          {t.body ? <div style={{ fontSize:14, color:"#4b5563", marginTop:4 }}>{t.body}</div> : null}
+  <div
+    style={{
+      position: "fixed",
+      right: 16,
+      bottom: 16,
+      zIndex: 40,              // below sticky headers
+      display: "flex",
+      flexDirection: "column",
+      gap: 10,
+      pointerEvents: "none",   // don’t block clicks through
+    }}
+  >
+    {toasts.slice(0, 2).map(t => (   // show max 2 at a time
+      <div
+        key={t.id}
+        style={{
+          maxWidth: 360,
+          border: "1px solid #e5e7eb",
+          background: "#fff",
+          borderRadius: 16,
+          boxShadow: "0 6px 22px rgba(0,0,0,0.12)",
+          padding: 14,
+          pointerEvents: "auto", // allow clicking this card
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+          <div className="font-semibold">{t.title || "Notification"}</div>
+          <button
+            onClick={() => setToasts(prev => prev.filter(x => x.id !== t.id))}
+            aria-label="Close"
+            style={{ border: "none", background: "transparent", cursor: "pointer" }}
+          >
+            ✕
+          </button>
         </div>
-      ))}
-    </div>,
-    document.body
-  );
+        {t.body ? <div style={{ fontSize: 14, color: "#4b5563", marginTop: 4 }}>{t.body}</div> : null}
+      </div>
+    ))}
+  </div>,
+  document.body
+);
+
 }

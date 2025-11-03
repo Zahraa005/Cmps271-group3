@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import MatchHistoryPanel from "../components/MatchHistoryPanel";
+import NotificationBell from "../components/NotificationBell";
+
 
 function classNames(...xs) {
   return xs.filter(Boolean).join(" ");
