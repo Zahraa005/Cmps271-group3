@@ -1,6 +1,6 @@
-from typing import Union, List
+from typing import Union, List, Optional
 import asyncpg
-from fastapi import FastAPI, Depends, HTTPException, Response
+from fastapi import FastAPI, Depends, HTTPException, Response, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 from dotenv import load_dotenv
@@ -21,7 +21,7 @@ from PlayConnect_API.schemas.Profile import ProfileCreate, ProfileRead
 from PlayConnect_API.schemas.Game_participants import GameParticipantJoin, GameParticipantLeave
 from PlayConnect_API.schemas.Waitlist import WaitlistRead  
 from PlayConnect_API.schemas.report import ReportCreate, ReportRead, ReportUpdate
-from PlayConnect_API.schemas.Notifications import NotificationCreate, NotificationRead
+from PlayConnect_API.schemas.Notifications import NotificationCreate, NotificationRead, NotificationType
 from PlayConnect_API.schemas.Friends import FriendCreate, FriendRead
 from PlayConnect_API.schemas.Match_Histories import MatchHistoryCreate, MatchHistoryRead
 
@@ -35,6 +35,7 @@ import os, secrets, hashlib
 import jwt
 from datetime import datetime, timedelta
 from fastapi import Request
+import json
 
 # =======================
 # LOGIN ATTEMPT TRACKING
@@ -1638,6 +1639,21 @@ async def update_report(report_id: int, report_update: ReportUpdate):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+def _normalize_metadata(value):
+    if isinstance(value, str) and value.strip():
+        try:
+            return json.loads(value)
+        except Exception:
+            return None
+    if isinstance(value, dict) or value is None:
+        return value
+    return None
+
+def _row_to_notification(row):
+    d = dict(row)
+    d["metadata"] = _normalize_metadata(d.get("metadata"))
+    return NotificationRead(**d)
 
 @app.post("/notifications", response_model=NotificationRead, status_code=201)
 async def create_notification(notification: NotificationCreate):
@@ -1648,20 +1664,32 @@ async def create_notification(notification: NotificationCreate):
         async with Database.pool.acquire() as connection:
             query = '''
                 INSERT INTO public."Notifications" (user_id, message, type, metadata, is_read, created_at)
-                VALUES ($1, $2, $3, $4, $5, NOW())
+                VALUES ($1, $2, $3, $4::jsonb, $5, NOW())
                 RETURNING notification_id, user_id, message, type, metadata, is_read, created_at
             '''
+            meta_value = None
+            if notification.metadata is not None:
+                # store as JSON string when column is TEXT
+                meta_value = json.dumps(notification.metadata)
+
             row = await connection.fetchrow(
                 query,
                 notification.user_id,
                 notification.message,
                 notification.type,
-                notification.metadata,
+                meta_value,
                 notification.is_read
             )
-            if not row:
-                raise HTTPException(status_code=500, detail="Failed to create notification")
-            return NotificationRead(**dict(row))
+            # 🔧 normalize metadata to dict for the schema
+            data = dict(row)
+            val = data.get("metadata")
+            if isinstance(val, str) and val.strip():
+                try:
+                    data["metadata"] = json.loads(val)
+                except Exception:
+                    data["metadata"] = None
+            # if it's already a dict (depending on driver), it's fine
+            return NotificationRead(**data)
     except HTTPException:
         raise
     except Exception as e:
@@ -1680,7 +1708,8 @@ async def get_notifications():
                 ORDER BY created_at DESC
             '''
             rows = await connection.fetch(query)
-            notifications = [NotificationRead(**dict(row)) for row in rows]
+
+            notifications = [_row_to_notification(r) for r in rows]
             return notifications
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1700,11 +1729,81 @@ async def get_notification_by_id(notification_id: int):
             row = await connection.fetchrow(query, notification_id)
             if not row:
                 raise HTTPException(status_code=404, detail="Notification not found")
+            
+            return _row_to_notification(row)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get("/notifications", response_model=List[NotificationRead])
+async def list_notifications(
+    user_id: int = Query(..., description="Target user"),
+    unread_only: bool = Query(False),
+    since_id: Optional[int] = Query(None, description="Return rows with id > since_id"),
+    limit: int = Query(20, ge=1, le=100),
+):
+    try:
+        async with Database.pool.acquire() as conn:
+            clauses = ['user_id = $1']
+            params = [user_id]
+            idx = 2
+
+            if unread_only:
+                clauses.append('is_read = FALSE')
+            if since_id is not None:
+                clauses.append(f'notification_id > ${idx}')
+                params.append(since_id); idx += 1
+
+            where_sql = " AND ".join(clauses)
+            rows = await conn.fetch(
+                f'''
+                SELECT notification_id, user_id, message, type, metadata, is_read, created_at
+                FROM public."Notifications"
+                WHERE {where_sql}
+                ORDER BY notification_id DESC
+                LIMIT ${idx}
+                ''',
+                *params, limit
+            )
+            return [NotificationRead(**dict(r)) for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.patch("/notifications/{notification_id}/read", response_model=NotificationRead)
+async def mark_notification_read(notification_id: int):
+    try:
+        async with Database.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                '''
+                UPDATE public."Notifications"
+                SET is_read = TRUE
+                WHERE notification_id = $1
+                RETURNING notification_id, user_id, message, type, metadata, is_read, created_at
+                ''',
+                notification_id
+            )
+            if not row:
+                raise HTTPException(status_code=404, detail="Notification not found")
             return NotificationRead(**dict(row))
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/notifications/unread_count")
+async def unread_count(user_id: int = Query(...)):
+    try:
+        async with Database.pool.acquire() as conn:
+            cnt = await conn.fetchval(
+                'SELECT COUNT(*) FROM public."Notifications" WHERE user_id = $1 AND is_read = FALSE',
+                user_id
+            )
+            return {"user_id": user_id, "unread_count": int(cnt)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
     
 @app.get("/match-histories", response_model=List[MatchHistoryRead])
 async def get_match_histories(

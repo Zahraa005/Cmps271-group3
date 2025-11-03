@@ -1,5 +1,7 @@
 ﻿import { BrowserRouter, Routes, Route } from "react-router-dom"
 import "./App.css"
+import { useContext } from "react";
+import { AuthContext } from "./contexts/AuthContext";
 
 import ProfileCreation from "./pages/ProfileCreation"
 import HomePage from "./pages/HomePage";
@@ -15,6 +17,10 @@ import CoachProfilePage from "./pages/CoachProfilePage";
 import AboutPage from './pages/AboutPage';
 import ContactPage from './pages/ContactPage';
 import FAQPage from './pages/FAQPage';
+//import ToastPortal from "./components/ToastPortal";
+//import NotificationsPoller from "./components/NotificationsPoller";
+//import NotificationBell from "./components/NotificationBell";
+
 
 
 
@@ -27,9 +33,17 @@ function Home() {
 }
 
 function App() {
+  const { user } = useContext(AuthContext) || {};
+  const userId =
+    user?.user_id ?? user?.id ?? Number(localStorage.getItem("user_id") || 0);
   return (
     <AuthProvider>
       <BrowserRouter>
+         {/* ADD: lightweight header with the bell */}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, padding: 12 }}>
+          {userId ? <NotificationBell userId={userId} /> : null}
+        </div>
+
         <Routes>
           {/* homepage */}
           <Route path="/" element={<HomePage />} />
@@ -67,6 +81,11 @@ function App() {
           {/* FAQ Page route */}
           <Route path="/faq" element={<FAQPage />} />
         </Routes>
+
+        {/* ADD: mount once so pop-ups work app-wide */}
+        <ToastPortal />
+        {userId ? <NotificationsPoller userId={userId} /> : null}
+
       </BrowserRouter>
     </AuthProvider>
   )
