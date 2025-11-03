@@ -1,7 +1,7 @@
 ﻿import { BrowserRouter, Routes, Route } from "react-router-dom"
 import "./App.css"
 import { useContext } from "react";
-import { AuthContext } from "./contexts/AuthContext";
+import { useAuth } from "./contexts/AuthContext";
 
 import ProfileCreation from "./pages/ProfileCreation"
 import HomePage from "./pages/HomePage";
@@ -17,9 +17,9 @@ import CoachProfilePage from "./pages/CoachProfilePage";
 import AboutPage from './pages/AboutPage';
 import ContactPage from './pages/ContactPage';
 import FAQPage from './pages/FAQPage';
-//import ToastPortal from "./components/ToastPortal";
-//import NotificationsPoller from "./components/NotificationsPoller";
-//import NotificationBell from "./components/NotificationBell";
+import ToastPortal from "./components/ToastPortal";
+import NotificationsPoller from "./components/NotificationsPoller";
+import NotificationBell from "./components/NotificationBell";
 
 
 
@@ -30,10 +30,10 @@ function Home() {
       <h1 className="text-4xl font-bold">Home Page</h1>
     </main>
   )
-}
+} 
 
-function App() {
-  const { user } = useContext(AuthContext) || {};
+export default function App() {
+  const { user } = useAuth() || {};
   const userId =
     user?.user_id ?? user?.id ?? Number(localStorage.getItem("user_id") || 0);
   return (
@@ -41,7 +41,7 @@ function App() {
       <BrowserRouter>
          {/* ADD: lightweight header with the bell */}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, padding: 12 }}>
-          {userId ? <NotificationBell userId={userId} /> : null}
+         {userId ? <NotificationBell userId={userId} /> : null}
         </div>
 
         <Routes>
@@ -91,4 +91,3 @@ function App() {
   )
 }
 
-export default App

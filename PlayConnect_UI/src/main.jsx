@@ -1,9 +1,9 @@
 import './index.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import './index.css'
 import App from './App.jsx'
 import { applyTheme } from './theme/useTheme'
+import { AuthProvider } from "./contexts/AuthContext";
 
 // Apply saved theme before React mounts to avoid FOUC
 try {
@@ -13,6 +13,8 @@ try {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    <AuthProvider>
+      <App />
+    </AuthProvider>
   </StrictMode>,
 )

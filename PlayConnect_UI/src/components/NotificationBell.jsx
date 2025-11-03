@@ -1,4 +1,4 @@
-/*/import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { listNotifications, unreadCount, markAllRead } from "../Api/notifications";
 import { notifEvents } from "./ToastPortal";
 
@@ -49,7 +49,7 @@ export default function NotificationBell({ userId }) {
         aria-label="Notifications"
         style={{ position:"relative", padding:8, borderRadius:9999, border:"none", background:"transparent" }}
       >
-        {/* bell icon *//*/}
+        {/* bell icon */}
         <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
           <path d="M12 2a6 6 0 00-6 6v3.586L4.293 13.293A1 1 0 005 15h14a1 1 0 00.707-1.707L18 11.586V8a6 6 0 00-6-6zm0 20a3 3 0 01-3-3h6a3 3 0 01-3 3z"/>
         </svg>
@@ -104,4 +104,4 @@ function titleFromType(t) {
     case "reminder": return "Reminder";
     default: return "Notification";
   }
-}/*/
+}

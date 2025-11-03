@@ -1,4 +1,4 @@
-/*/import { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { listNotifications, markRead } from "../Api/notifications";
 import ToastPortal, { pushToast, notifEvents } from "./ToastPortal";
 
@@ -53,4 +53,4 @@ function prettyTitle(type) {
     case "reminder": return "Reminder";
     default: return "Notification";
   }
-}/*/
+}
