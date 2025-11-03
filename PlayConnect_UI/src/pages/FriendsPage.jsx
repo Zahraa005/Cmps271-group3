@@ -15,8 +15,8 @@ function useCurrentUserId() {
   return Number.isFinite(fromStorage) && fromStorage > 0
     ? fromStorage
     : Number.isFinite(fromQuery) && fromQuery > 0
-    ? fromQuery
-    : null;
+      ? fromQuery
+      : null;
 }
 
 // Change this to your API base if needed:
@@ -49,6 +49,8 @@ export default function FriendsPage() {
   const [showViewProfile, setShowViewProfile] = useState(false);
   const [viewUserId, setViewUserId] = useState(null);
   const [viewInitialUser, setViewInitialUser] = useState(null);
+
+
 
   // ---------- Helpers ----------
   const getInitials = (name) => {
@@ -291,7 +293,7 @@ export default function FriendsPage() {
     return (
       <div className="group bg-neutral-900 border border-neutral-800 rounded-xl p-5 shadow-lg hover:shadow-fuchsia-900/50 hover:border-fuchsia-800/50 transition-all duration-300 hover:-translate-y-1">
         {/* Avatar + Name */}
-          <div className="flex items-start gap-4 mb-4">
+        <div className="flex items-start gap-4 mb-4">
           <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
             {person.avatar_url ? (
               <img
@@ -357,11 +359,10 @@ export default function FriendsPage() {
           <button
             onClick={onCancelClick}
             disabled={isCanceling}
-            className={`w-full px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 ${
-              isCanceling
-                ? "bg-neutral-800 text-neutral-400 cursor-not-allowed"
-                : "bg-neutral-800 hover:bg-neutral-700 text-neutral-200"
-            }`}
+            className={`w-full px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 ${isCanceling
+              ? "bg-neutral-800 text-neutral-400 cursor-not-allowed"
+              : "bg-neutral-800 hover:bg-neutral-700 text-neutral-200"
+              }`}
           >
             {isCanceling ? "Canceling..." : "Cancel Request"}
           </button>
@@ -477,11 +478,10 @@ export default function FriendsPage() {
             <button
               key={item}
               onClick={() => setTab(item)}
-              className={`px-5 py-2 rounded-lg font-semibold transition-all shadow-md relative ${
-                tab === item
-                  ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-lg shadow-fuchsia-500/30"
-                  : "bg-gradient-to-r from-indigo-900 to-fuchsia-900 text-indigo-200 hover:from-indigo-700 hover:to-fuchsia-700"
-              }`}
+              className={`px-5 py-2 rounded-lg font-semibold transition-all shadow-md relative ${tab === item
+                ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-lg shadow-fuchsia-500/30"
+                : "bg-gradient-to-r from-indigo-900 to-fuchsia-900 text-indigo-200 hover:from-indigo-700 hover:to-fuchsia-700"
+                }`}
             >
               {item === "friends" && "My Friends"}
               {item === "requests" && `Incoming (${filteredRequests.length})`}
@@ -628,8 +628,8 @@ export default function FriendsPage() {
             {profileLoading ? (
               <div className="py-8 flex items-center justify-center">
                 <svg className="h-5 w-5 animate-spin text-neutral-300" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                 </svg>
               </div>
             ) : profileUser ? (
@@ -702,6 +702,7 @@ export default function FriendsPage() {
           onClose={() => setShowViewProfile(false)}
         />
       )}
+
     </div>
   );
 }
