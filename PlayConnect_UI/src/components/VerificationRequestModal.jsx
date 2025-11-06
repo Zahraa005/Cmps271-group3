@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { FileText, Image, X, Paperclip, ChevronDown, ChevronUp } from "lucide-react";
+import axios from "axios";
 
 export default function VerificationRequestModal({ isOpen, onClose, coachId }) {
   const [message, setMessage] = useState("");
@@ -13,52 +14,57 @@ export default function VerificationRequestModal({ isOpen, onClose, coachId }) {
 
   const API_BASE = import.meta.env?.VITE_API_URL || "http://127.0.0.1:8000";
 
+  // ✅ allow multiple files
   const handleFilesChange = (e) => {
     const selectedFiles = Array.from(e.target.files);
-    const updated = [...files, ...selectedFiles];
-    setFiles(updated);
+    setFiles((prev) => [...prev, ...selectedFiles]);
   };
 
   const removeFile = (index) => {
-    const updated = files.filter((_, i) => i !== index);
-    setFiles(updated);
+    setFiles(files.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!message.trim() || files.length === 0) {
-      setError("Please provide both a message and at least one uploaded document.");
+    if (!message.trim()) {
+      setError("Please enter a short message for verification.");
       return;
     }
 
     try {
       setSubmitting(true);
       setError("");
+      const id = coachId || Number(localStorage.getItem("user_id"));
+      if (!id) {
+        setError("Missing coach ID — please log in again.");
+        return;
+      }
 
+      // ✅ FormData for multiple files
       const formData = new FormData();
-      formData.append("coach_id", coachId);
+      formData.append("coach_id", id);
       formData.append("message", message);
-      files.forEach((file) => formData.append("documents", file));
+      files.forEach((file) => formData.append("documents", file)); // backend expects 'documents'
 
-      const res = await fetch(`${API_BASE}/verification/request`, {
-        method: "POST",
-        body: formData,
+      // ✅ send to correct backend route
+      const res = await axios.post(`${API_BASE}/coaches/request-verification`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
 
-      if (!res.ok) throw new Error("Failed to submit verification request");
-
+      // ✅ success flow
       setSuccess(true);
+      alert(res.data?.message || "Verification request submitted successfully!");
+
       setTimeout(() => {
-        setSubmitting(false);
-        setSuccess(false);
         setMessage("");
         setFiles([]);
+        setSuccess(false);
         onClose();
       }, 1500);
     } catch (err) {
       console.error(err);
-      setError(err.message || "Error submitting verification request.");
+      setError(err.response?.data?.detail || "Error submitting verification request.");
     } finally {
       setSubmitting(false);
     }
@@ -87,14 +93,14 @@ export default function VerificationRequestModal({ isOpen, onClose, coachId }) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <p className="text-neutral-400 text-sm mb-2">
-            Please write a short message and attach all relevant certifications.
+            Write a short message and attach all relevant certification documents.
           </p>
 
           {/* Message Input */}
           <textarea
             className={`w-full bg-neutral-800 border ${
               error && !message.trim() ? "border-red-500" : "border-neutral-700"
-            } rounded-lg px-4 py-3 text-sm text-neutral-100 placeholder-neutral-500 focus:ring-2 focus:ring-fuchsia-500 outline-none transition resize-y min-h-[140px] max-h-[50vh] overflow-y-auto`}
+            } rounded-lg px-4 py-3 text-sm text-neutral-100 placeholder-neutral-500 focus:ring-2 focus:ring-fuchsia-500 outline-none transition resize-y min-h-[140px]`}
             placeholder="Write your verification message..."
             value={message}
             onChange={(e) => setMessage(e.target.value)}
@@ -104,10 +110,12 @@ export default function VerificationRequestModal({ isOpen, onClose, coachId }) {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium text-neutral-300">
-                Upload documents (required)
+                Upload documents (multiple allowed)
               </label>
               <span className="text-xs text-neutral-500">
-                {files.length > 0 ? `${files.length} file${files.length > 1 ? "s" : ""} uploaded` : "No files yet"}
+                {files.length > 0
+                  ? `${files.length} file${files.length > 1 ? "s" : ""} uploaded`
+                  : "No files yet"}
               </span>
             </div>
 
@@ -116,18 +124,15 @@ export default function VerificationRequestModal({ isOpen, onClose, coachId }) {
               accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
               multiple
               onChange={handleFilesChange}
-              className={`w-full text-sm bg-neutral-800 border ${
-                error && files.length === 0 ? "border-red-500" : "border-neutral-700"
-              } rounded-lg p-2 text-neutral-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-indigo-500 file:to-fuchsia-500 file:text-white hover:file:opacity-90`}
+              className="w-full text-sm bg-neutral-800 border border-neutral-700 rounded-lg p-2 text-neutral-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-indigo-500 file:to-fuchsia-500 file:text-white hover:file:opacity-90"
             />
 
-            {/* File Dropdown */}
             {files.length > 0 && (
               <div>
                 <button
                   type="button"
                   onClick={() => setShowFiles(!showFiles)}
-                  className="w-full flex items-center justify-between bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-4 py-2 rounded-lg text-sm transition mb-0"
+                  className="w-full flex items-center justify-between bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-4 py-2 rounded-lg text-sm transition"
                 >
                   <span>View uploaded files</span>
                   {showFiles ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -159,7 +164,7 @@ export default function VerificationRequestModal({ isOpen, onClose, coachId }) {
             )}
           </div>
 
-          {/* Error or Success Message */}
+          {/* Error & Success */}
           {error && (
             <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
               {error}
