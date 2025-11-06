@@ -46,3 +46,7 @@ class CoachRead(BaseModel):
 class CoachVerifyUpdate(BaseModel):
     # Only allow turning verification ON via this endpoint
     isverified: Literal[True]
+
+class CoachVerificationRequestCreate(BaseModel):
+    coach_id: int
+    message: Optional[str] = None
