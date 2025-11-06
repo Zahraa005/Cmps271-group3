@@ -8,7 +8,7 @@ __all__ = ["ReportCreate", "ReportRead", "ReportUpdate"]
 class ReportCreate(BaseModel):
     reporter_id: int
     reported_user_id: int
-    report_game_id: int
+    report_game_id: Optional[int] = None
     reason: str
 
 class ReportUpdate(BaseModel):
@@ -21,6 +21,6 @@ class ReportRead(BaseModel):
     report_id: int
     reporter_id: int
     reported_user_id: int
-    report_game_id: int
+    report_game_id: Optional[int] = None
     reason: str
     created_at: Optional[datetime] = None

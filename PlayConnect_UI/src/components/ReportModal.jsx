@@ -1,3 +1,4 @@
+import { reportAPI } from "../Api/reportAPI";
 import React, { useState } from "react";
 
 const ReportModal = ({ isOpen, onClose, type, targetName }) => {
@@ -7,15 +8,30 @@ const ReportModal = ({ isOpen, onClose, type, targetName }) => {
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Later integrate backend call here
-    console.log("Report submitted:", { type, targetName, reason, details });
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      onClose();
-    }, 1500);
+    try {
+      const payload = {
+        reporter_id: 13, // replace later with logged-in user ID
+        reported_user_id: type === "player" ? targetName?.id || 67 : 67, // fallback valid ID
+        report_game_id: type === "game" ? targetName?.id || null : null,
+        reason: reason || "unspecified",
+      };
+
+      console.log("Submitting report payload:", payload);
+
+      const response = await reportAPI.createReport(payload);
+      console.log("Report created:", response);
+
+      setSubmitted(true);
+      setTimeout(() => {
+        setSubmitted(false);
+        onClose();
+      }, 1500);
+    } catch (error) {
+      console.error("Error submitting report:", error);
+      alert("Failed to send report. Please try again.");
+    }
   };
 
   return (
