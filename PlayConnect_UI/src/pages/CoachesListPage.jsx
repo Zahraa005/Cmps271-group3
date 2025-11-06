@@ -16,10 +16,13 @@ export default function CoachesListPage() {
 
 
   const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("user_id");
-    localStorage.removeItem("role");
-    window.location.href = "/login";
+    try {
+      localStorage.clear(); // Clear all stored user data, tokens, and roles
+      console.log("[Logout] Cleared all local storage. Redirecting to home...");
+      window.location.replace("/"); // Redirect cleanly to the home page
+    } catch (err) {
+      console.error("[Logout] Error during logout:", err);
+    }
   };
 
 
