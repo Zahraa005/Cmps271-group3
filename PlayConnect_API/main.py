@@ -36,6 +36,11 @@ import jwt
 from datetime import datetime, timedelta
 from fastapi import Request
 import json
+from fastapi import Body
+from typing import List
+from fastapi import UploadFile, File, Form, HTTPException
+import os, shutil
+from datetime import datetime
 
 # =======================
 # LOGIN ATTEMPT TRACKING
@@ -43,8 +48,8 @@ import json
 FAILED_LOGINS = {}  # {email: {"count": int, "first_fail": datetime}}
 
 MAX_ATTEMPTS = 5
-BLOCK_DURATION = timedelta(seconds=30)   # ⬅️ changed from 15 minutes for testing
-# BLOCK_DURATION = timedelta(minutes=15)  # ⬅️ (keep this commented to restore later)
+#BLOCK_DURATION = timedelta(seconds=30)   # ⬅️ changed from 15 minutes for testing
+BLOCK_DURATION = timedelta(minutes=15)  
 
 def check_login_attempt(email: str):
     """Raise HTTPException if user is temporarily blocked."""
@@ -939,6 +944,63 @@ async def verify_coach(coach_id: int, body: CoachVerifyUpdate):
         print("🔥 ERROR in /coaches/{coach_id}/verification:", e)
         raise HTTPException(status_code=500, detail=str(e))
     
+
+@app.post("/coaches/request-verification", status_code=201)
+async def request_coach_verification(
+    coach_id: int = Form(...),
+    message: str = Form(""),
+    documents: List[UploadFile] = File(None)
+):
+    """
+    Coaches submit a verification request (SCRUM-157)
+    Supports multiple file uploads.
+    """
+    try:
+        # ✅ 1) verify coach exists
+        async with Database.pool.acquire() as connection:
+            exists = await connection.fetchrow(
+                'SELECT coach_id FROM public."Coaches" WHERE coach_id = $1 LIMIT 1',
+                coach_id
+            )
+            if not exists:
+                raise HTTPException(status_code=404, detail="Coach not found")
+
+        # ✅ 2) save uploaded files
+        upload_paths = []
+        if documents:
+            folder = "uploads/verification_docs"
+            os.makedirs(folder, exist_ok=True)
+            for doc in documents:
+                filename = f"{coach_id}_{int(datetime.utcnow().timestamp())}_{doc.filename}"
+                path = os.path.join(folder, filename)
+                with open(path, "wb") as buffer:
+                    shutil.copyfileobj(doc.file, buffer)
+                upload_paths.append(path)
+
+        # ✅ 3) insert request into DB
+        async with Database.pool.acquire() as connection:
+            await connection.execute(
+                '''
+                INSERT INTO public."Coach_verification_requests" (coach_id, message, document_url, status)
+                VALUES ($1, $2, $3, 'pending')
+                ''',
+                coach_id, message, ", ".join(upload_paths) if upload_paths else None
+            )
+
+        return {
+            "message": "Verification request submitted successfully!",
+            "coach_id": coach_id,
+            "documents_saved": len(upload_paths)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print("🔥 ERROR /coaches/request-verification:", e)
+        raise HTTPException(status_code=500, detail="Failed to submit verification request")
+
+
+    
 #USER_STATS endpoints
 @app.get("/user_stats", response_model=List[UserStatRead])
 async def get_user_stats():
@@ -1010,6 +1072,100 @@ async def create_game_instance(game: GameInstanceCreate):
             return GameInstanceResponse(**dict(row))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+@app.post("/book-session", status_code=201)
+async def book_session(
+    game_id: int = Body(..., embed=True),
+    user_id: int = Body(..., embed=True)
+):
+    """
+    Book a session for a user (SCRUM-156)
+    - Verifies the game exists and is open.
+    - Ensures the session isn't full.
+    - Adds the user as a participant.
+    - Returns game + booking info.
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            # 1️⃣ Ensure game exists
+            game = await connection.fetchrow(
+                '''
+                SELECT gi.*, 
+                       COALESCE(gp_count.cnt, 0) AS participants_count
+                FROM public."Game_instance" AS gi
+                LEFT JOIN (
+                    SELECT game_id, COUNT(*) AS cnt 
+                    FROM public."Game_participants"
+                    GROUP BY game_id
+                ) AS gp_count ON gp_count.game_id = gi.game_id
+                WHERE gi.game_id = $1
+                ''',
+                game_id
+            )
+            if not game:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            if game["status"].lower() != "open":
+                raise HTTPException(status_code=400, detail="This session is not open for booking")
+
+            if game["participants_count"] >= game["max_players"]:
+                raise HTTPException(status_code=400, detail="This session is already full")
+
+            # 2️⃣ Ensure user exists
+            user = await connection.fetchrow(
+                'SELECT user_id FROM public."Users" WHERE user_id = $1 LIMIT 1',
+                user_id
+            )
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            # 3️⃣ Check if user already joined
+            existing = await connection.fetchrow(
+                '''
+                SELECT 1 FROM public."Game_participants"
+                WHERE game_id = $1 AND user_id = $2
+                ''',
+                game_id, user_id
+            )
+            if existing:
+                raise HTTPException(status_code=400, detail="User already booked this session")
+
+            # 4️⃣ Insert into Game_participants
+            await connection.execute(
+                '''
+                INSERT INTO public."Game_participants" (game_id, user_id, role, joined_at)
+                VALUES ($1, $2, 'PLAYER', NOW())
+                ''',
+                game_id, user_id
+            )
+
+            # 5️⃣ Return full booking info
+            booking = await connection.fetchrow(
+                '''
+                SELECT 
+                    gi.game_id, gi.location, gi.start_time, gi.duration_minutes,
+                    gi.skill_level, gi.max_players, gi.status,
+                    u.first_name AS coach_first_name, u.last_name AS coach_last_name
+                FROM public."Game_instance" AS gi
+                JOIN public."Users" AS u ON u.user_id = gi.host_id
+                WHERE gi.game_id = $1
+                ''',
+                game_id
+            )
+
+            return {
+                "message": "Session booked successfully!",
+                "booking": dict(booking),
+                "user_id": user_id
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print("🔥 ERROR in /book-session:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.put("/game-instances/{game_id}", response_model=GameInstanceResponse)
 async def update_game_instance(game_id: int, game: GameInstanceCreate):
