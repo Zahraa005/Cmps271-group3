@@ -487,12 +487,33 @@ useEffect(() => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: name === 'sport_id' || name === 'duration_minutes' || name === 'max_players' || name === 'cost' || name === 'host_id'
-        ? parseInt(value) || 0
-        : value
-    }));
+    setFormData(prev => {
+      let newValue = value;
+      
+      // Handle numeric fields
+      if (name === 'sport_id' || name === 'host_id') {
+        newValue = value === '' ? 0 : (parseInt(value) || 0);
+      } else if (name === 'duration_minutes' || name === 'max_players') {
+        newValue = value === '' ? 0 : (parseInt(value) || 0);
+      } else if (name === 'cost') {
+        // Allow empty string during typing, use parseFloat for decimals
+        // Keep the raw value if it ends with '.' to allow typing decimals smoothly
+        if (value === '') {
+          newValue = '';
+        } else if (value.endsWith('.') && !isNaN(parseFloat(value))) {
+          // Allow trailing decimal point during typing (e.g., "1.")
+          newValue = value;
+        } else {
+          const parsed = parseFloat(value);
+          newValue = isNaN(parsed) ? '' : parsed;
+        }
+      }
+      
+      return {
+        ...prev,
+        [name]: newValue
+      };
+    });
 
     // Clear error when user starts typing
     if (formErrors[name]) {
@@ -507,7 +528,8 @@ useEffect(() => {
     if (!formData.location.trim()) errors.location = "Location is required";
     if (formData.duration_minutes < 15) errors.duration_minutes = "Duration must be at least 15 minutes";
     if (formData.max_players < 2) errors.max_players = "Must allow at least 2 players";
-    if (formData.cost < 0) errors.cost = "Cost cannot be negative";
+    const costValue = formData.cost === '' ? 0 : (typeof formData.cost === 'number' ? formData.cost : parseFloat(formData.cost) || 0);
+    if (costValue < 0) errors.cost = "Cost cannot be negative";
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -520,6 +542,8 @@ useEffect(() => {
     setFormLoading(true);
     try {
       // Prepare the data in the exact format expected by the API
+      // Convert empty cost to 0
+      const costValue = formData.cost === '' ? 0 : (typeof formData.cost === 'number' ? formData.cost : parseFloat(formData.cost) || 0);
       const apiData = {
         host_id: formData.host_id,
         sport_id: formData.sport_id,
@@ -528,7 +552,7 @@ useEffect(() => {
         location: formData.location,
         skill_level: formData.skill_level,
         max_players: formData.max_players,
-        cost: formData.cost,
+        cost: costValue,
         status: formData.status,
         notes: formData.notes
       };
@@ -793,40 +817,71 @@ useEffect(() => {
           </div>
         )}
 
-        {/* Create Game Form */}
+        {/* Create Game Modal */}
         {showCreateForm && (
-          <div className="mb-8 max-w-2xl mx-auto">
-            <div className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-6">
-              <h2 className="text-xl font-semibold text-white mb-6">Create New Game</h2>
-              <form onSubmit={handleCreateGame} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm mb-1 text-white">Sport</label>
-                    <select
-                      name="sport_id"
-                      value={formData.sport_id}
-                      onChange={handleInputChange}
-                      className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                      disabled={formLoading}
-                    >
-                      {sports.map((sport) => (
-                        <option key={sport.sport_id} value={sport.sport_id}>
-                          {sport.name}
-                        </option>
-                      ))}
-                    </select>
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm overflow-y-auto"
+            onClick={(e) => {
+              // Close modal if clicking on the backdrop (not the modal content)
+              if (e.target === e.currentTarget) {
+                setShowCreateForm(false);
+              }
+            }}
+          >
+            <div className="relative bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl p-8 max-w-3xl w-full mx-4 my-10">
+              {/* Close button */}
+              <button
+                type="button"
+                onClick={() => setShowCreateForm(false)}
+                className="absolute top-6 right-4 text-neutral-400 hover:text-white hover:scale-110 transition-transform text-2xl leading-none"
+                aria-label="Close"
+              >
+                ×
+              </button>
+
+              {/* Title */}
+              <div className="mb-6">
+                <h2 className="text-2xl font-semibold text-white">Create New Game</h2>
+                <p className="text-sm text-neutral-400 mt-1">
+                  Fill in the details below to create a new game instance.
+                </p>
+              </div>
+
+              {/* Form */}
+              <form onSubmit={handleCreateGame} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="flex flex-col">
+                    <label className="text-sm text-neutral-300 mb-1.5">Sport</label>
+                    <div className="relative">
+                      <select
+                        name="sport_id"
+                        value={formData.sport_id}
+                        onChange={handleInputChange}
+                        className="appearance-none w-full rounded-lg bg-neutral-950/80 border border-neutral-700 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent pr-8"
+                        disabled={formLoading}
+                      >
+                        {sports.map((sport) => (
+                          <option key={sport.sport_id} value={sport.sport_id}>
+                            {sport.name}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none">
+                        ▼
+                      </span>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm mb-1 text-white">Start Time</label>
+                  <div className="flex flex-col">
+                    <label className="text-sm text-neutral-300 mb-1.5">Start Time</label>
                     <input
                       type="datetime-local"
                       name="start_time"
                       value={formData.start_time}
                       onChange={handleInputChange}
                       className={classNames(
-                        "w-full rounded-lg bg-neutral-950/70 border px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent",
-                        formErrors.start_time ? "border-red-500" : "border-neutral-800"
+                        "w-full rounded-lg bg-neutral-950/80 border px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent",
+                        formErrors.start_time ? "border-red-500" : "border-neutral-700"
                       )}
                       disabled={formLoading}
                     />
@@ -835,8 +890,8 @@ useEffect(() => {
                     )}
                   </div>
 
-                  <div>
-                    <label className="block text-sm mb-1 text-white">Duration (minutes)</label>
+                  <div className="flex flex-col">
+                    <label className="text-sm text-neutral-300 mb-1.5">Duration (minutes)</label>
                     <input
                       type="number"
                       name="duration_minutes"
@@ -844,8 +899,8 @@ useEffect(() => {
                       onChange={handleInputChange}
                       min="15"
                       className={classNames(
-                        "w-full rounded-lg bg-neutral-950/70 border px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent",
-                        formErrors.duration_minutes ? "border-red-500" : "border-neutral-800"
+                        "w-full rounded-lg bg-neutral-950/80 border px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent",
+                        formErrors.duration_minutes ? "border-red-500" : "border-neutral-700"
                       )}
                       disabled={formLoading}
                     />
@@ -854,8 +909,8 @@ useEffect(() => {
                     )}
                   </div>
 
-                  <div>
-                    <label className="block text-sm mb-1 text-white">Location</label>
+                  <div className="flex flex-col">
+                    <label className="text-sm text-neutral-300 mb-1.5">Location</label>
                     <input
                       type="text"
                       name="location"
@@ -863,8 +918,8 @@ useEffect(() => {
                       onChange={handleInputChange}
                       placeholder="Enter location"
                       className={classNames(
-                        "w-full rounded-lg bg-neutral-950/70 border px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent",
-                        formErrors.location ? "border-red-500" : "border-neutral-800"
+                        "w-full rounded-lg bg-neutral-950/80 border px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent",
+                        formErrors.location ? "border-red-500" : "border-neutral-700"
                       )}
                       disabled={formLoading}
                     />
@@ -873,23 +928,28 @@ useEffect(() => {
                     )}
                   </div>
 
-                  <div>
-                    <label className="block text-sm mb-1 text-white">Skill Level</label>
-                    <select
-                      name="skill_level"
-                      value={formData.skill_level}
-                      onChange={handleInputChange}
-                      className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                      disabled={formLoading}
-                    >
-                      <option value="Beginner">Beginner</option>
-                      <option value="Intermediate">Intermediate</option>
-                      <option value="Advanced">Advanced</option>
-                    </select>
+                  <div className="flex flex-col">
+                    <label className="text-sm text-neutral-300 mb-1.5">Skill Level</label>
+                    <div className="relative">
+                      <select
+                        name="skill_level"
+                        value={formData.skill_level}
+                        onChange={handleInputChange}
+                        className="appearance-none w-full rounded-lg bg-neutral-950/80 border border-neutral-700 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent pr-8"
+                        disabled={formLoading}
+                      >
+                        <option value="Beginner">Beginner</option>
+                        <option value="Intermediate">Intermediate</option>
+                        <option value="Advanced">Advanced</option>
+                      </select>
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none">
+                        ▼
+                      </span>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm mb-1 text-white">Max Players</label>
+                  <div className="flex flex-col">
+                    <label className="text-sm text-neutral-300 mb-1.5">Max Players</label>
                     <input
                       type="number"
                       name="max_players"
@@ -897,8 +957,8 @@ useEffect(() => {
                       onChange={handleInputChange}
                       min="2"
                       className={classNames(
-                        "w-full rounded-lg bg-neutral-950/70 border px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent",
-                        formErrors.max_players ? "border-red-500" : "border-neutral-800"
+                        "w-full rounded-lg bg-neutral-950/80 border px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent",
+                        formErrors.max_players ? "border-red-500" : "border-neutral-700"
                       )}
                       disabled={formLoading}
                     />
@@ -907,18 +967,18 @@ useEffect(() => {
                     )}
                   </div>
 
-                  <div>
-                    <label className="block text-sm mb-1 text-white">Cost ($)</label>
+                  <div className="flex flex-col">
+                    <label className="text-sm text-neutral-300 mb-1.5">Cost ($)</label>
                     <input
                       type="number"
                       name="cost"
-                      value={formData.cost}
+                      value={formData.cost === '' ? '' : (typeof formData.cost === 'string' ? formData.cost : formData.cost)}
                       onChange={handleInputChange}
                       min="0"
                       step="0.01"
                       className={classNames(
-                        "w-full rounded-lg bg-neutral-950/70 border px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent",
-                        formErrors.cost ? "border-red-500" : "border-neutral-800"
+                        "w-full rounded-lg bg-neutral-950/80 border px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent",
+                        formErrors.cost ? "border-red-500" : "border-neutral-700"
                       )}
                       disabled={formLoading}
                     />
@@ -929,40 +989,51 @@ useEffect(() => {
                 </div>
 
                 <div>
-                  <label className="block text-sm mb-1 text-white">Notes</label>
+                  <label className="text-sm text-neutral-300 mb-1.5">Notes</label>
                   <textarea
                     name="notes"
                     value={formData.notes}
                     onChange={handleInputChange}
                     placeholder="Additional notes (optional)"
                     rows="3"
-                    className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
+                    className="w-full rounded-lg bg-neutral-950/80 border border-neutral-700 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-y min-h-[80px] max-h-[160px]"
                     disabled={formLoading}
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={formLoading}
-                  className={classNames(
-                    "w-full rounded-xl py-3 font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-950",
-                    formLoading
-                      ? "bg-neutral-800/80 text-neutral-500 cursor-not-allowed"
-                      : "bg-violet-500 text-white hover:bg-violet-400 active:scale-[0.99] shadow-lg shadow-violet-500/30"
-                  )}
-                >
-                  {formLoading ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                      </svg>
-                      Creating Game...
-                    </div>
-                  ) : (
-                    "Create Game"
-                  )}
-                </button>
+                {/* Buttons */}
+                <div className="flex gap-3">
+                  <button
+                    type="submit"
+                    disabled={formLoading}
+                    className={classNames(
+                      "flex-1 py-2 font-medium rounded-lg transition-colors",
+                      formLoading
+                        ? "bg-neutral-800/80 text-neutral-500 cursor-not-allowed"
+                        : "bg-violet-500 text-white hover:bg-violet-400"
+                    )}
+                  >
+                    {formLoading ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                        </svg>
+                        Creating...
+                      </div>
+                    ) : (
+                      "Create Game"
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateForm(false)}
+                    disabled={formLoading}
+                    className="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </form>
             </div>
           </div>
