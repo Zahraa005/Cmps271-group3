@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import ThemeToggle from "../theme/ThemeToggle";
+import API_BASE_URL from '../Api/config';
 
 const ALL_SPORTS = [
   "Football", "Basketball", "Padel", "Tennis", "Volleyball", "Running", "Cycling",
@@ -157,7 +158,7 @@ export default function ProfileCreation() {
       // If we already have details, skip
       if (userDetails?.user_id === effectiveUserId) return;
       try {
-        const res = await fetch("http://127.0.0.1:8000/users");
+        const res = await fetch(`${API_BASE_URL}/users`);
         if (!res.ok) return;
         const all = await res.json();
         const me = all.find((u) => u.user_id === effectiveUserId);
@@ -251,7 +252,7 @@ export default function ProfileCreation() {
       if (!first_name || !last_name || typeof age !== "number") {
         // Try one last fetch if missing
         try {
-          const res = await fetch("http://127.0.0.1:8000/users");
+          const res = await fetch(`${API_BASE_URL}/users`);
           if (res.ok) {
             const all = await res.json();
             const me = all.find((u) => u.user_id === user.user_id);
@@ -273,7 +274,7 @@ export default function ProfileCreation() {
         avatar_url: avatarUrl || "",
         role,
       };
-      const url = `http://127.0.0.1:8000/profile-creation?user_id=${encodeURIComponent(effectiveUserId)}`;
+      const url = `${API_BASE_URL}/profile-creation?user_id=${encodeURIComponent(effectiveUserId)}`;
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

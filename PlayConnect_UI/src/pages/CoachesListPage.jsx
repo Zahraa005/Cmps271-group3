@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Search, Star, MapPin, Award, ChevronRight, CheckCircle, Plus } from "lucide-react";
 import VerificationRequestModal from "../components/VerificationRequestModal";
+import API_BASE_URL from '../Api/config';
 
 export default function CoachesListPage() {
   const [search, setSearch] = useState("");
@@ -26,14 +27,14 @@ export default function CoachesListPage() {
   };
 
 
-  const API_BASE = "http://127.0.0.1:8000";
+ 
 
   // Fetch coaches from backend
   useEffect(() => {
     const fetchCoaches = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${API_BASE}/coaches`);
+        const res = await fetch(`${API_BASE_URL}/coaches`);
         const data = await res.json();
         setCoaches(data);
         setLoading(false);
@@ -88,7 +89,7 @@ export default function CoachesListPage() {
 
   const refreshCoaches = async () => {
     try {
-      const res = await fetch(`${API_BASE}/coaches`);
+      const res = await fetch(`${API_BASE_URL}/coaches`);
       const data = await res.json();
       setCoaches(data);
     } catch (e) {
@@ -103,7 +104,7 @@ export default function CoachesListPage() {
   const handleDelete = async () => {
     if (!confirmingDeleteId) return;
     try {
-      await fetch(`${API_BASE}/coaches/${confirmingDeleteId}`, { method: "DELETE" });
+      await fetch(`${API_BASE_URL}/coaches/${confirmingDeleteId}`, { method: "DELETE" });
       setConfirmingDeleteId(null);
       refreshCoaches();
     } catch (e) {
@@ -380,7 +381,7 @@ function CreateListingModal({ isOpen, onClose, user_id, onSuccess }) {
 
   if (!isOpen) return null;
 
-  const API_BASE = "http://127.0.0.1:8000";
+  
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -397,7 +398,7 @@ function CreateListingModal({ isOpen, onClose, user_id, onSuccess }) {
         isverified: false
       };
 
-      const res = await fetch(`${API_BASE}/coaches`, {
+      const res = await fetch(`${API_BASE_URL}/coaches`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -543,7 +544,7 @@ function EditListingModal({ isOpen, onClose, coach, onSuccess }) {
 
   if (!isOpen) return null;
 
-  const API_BASE = "http://127.0.0.1:8000";
+ 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -562,7 +563,7 @@ function EditListingModal({ isOpen, onClose, coach, onSuccess }) {
         bio: bio !== "" ? bio : undefined,
       };
 
-      const res = await fetch(`${API_BASE}/coaches/${coach.coach_id}`, {
+      const res = await fetch(`${API_BASE_URL}/coaches/${coach.coach_id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

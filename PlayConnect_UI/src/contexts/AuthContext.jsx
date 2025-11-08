@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import API_BASE_URL from '../Api/config';
+
 
 const AuthContext = createContext();
 
@@ -154,7 +156,8 @@ export const AuthProvider = ({ children }) => {
         if (!parsedUser.first_name || !parsedUser.last_name) {
           (async () => {
             try {
-              const res = await fetch('http://127.0.0.1:8000/users');
+              const res = await fetch(`${API_BASE_URL}/users`);
+
               if (res.ok) {
                 const users = await res.json();
                 const match = users.find(u => u.user_id === parsedUser.user_id || u.email === parsedUser.email);
@@ -196,7 +199,8 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/login', {
+      const response = await fetch(`${API_BASE_URL}/login`, {
+
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -218,7 +222,8 @@ export const AuthProvider = ({ children }) => {
         
         // Try to fetch names from users endpoint
         try {
-          const res = await fetch('http://127.0.0.1:8000/users');
+          const res = await fetch(`${API_BASE_URL}/users`);
+
           if (res.ok) {
             const users = await res.json();
             const match = users.find(u => u.user_id === data.user_id || u.email === email);

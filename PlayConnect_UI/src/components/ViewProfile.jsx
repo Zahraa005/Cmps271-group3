@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
 import ReportModal from "./ReportModal";
+import API_BASE_URL from "../Api/config";
 
-const API_BASE = import.meta?.env?.VITE_API_URL || "http://localhost:8000";
+
+
 
 /**
  * Props:
@@ -28,7 +30,8 @@ const ViewProfile = ({ userId, currentUserId, onClose, initialUser }) => {
         setLoading(true);
 
         // 1) Already friends
-        let res = await fetch(`${API_BASE}/friends/my?user_id=${currentUserId}`);
+        let res = await fetch(`${API_BASE_URL}/friends/my?user_id=${currentUserId}`);
+
         if (res.ok) {
           const edges = await res.json();
           const found = edges.map(e => e.friend).find(f => f.user_id === userId);
@@ -41,7 +44,8 @@ const ViewProfile = ({ userId, currentUserId, onClose, initialUser }) => {
         }
 
         // 2) Incoming requests (they requested me)
-        res = await fetch(`${API_BASE}/friends/requests?user_id=${currentUserId}`);
+        res = await fetch(`${API_BASE_URL}/friends/requests?user_id=${currentUserId}`);
+
         if (res.ok) {
           const edges = await res.json();
           const found = edges.map(e => e.friend).find(f => f.user_id === userId);
@@ -54,7 +58,8 @@ const ViewProfile = ({ userId, currentUserId, onClose, initialUser }) => {
         }
 
         // 3) Pending I sent (the problematic tab)
-        res = await fetch(`${API_BASE}/friends/sent?user_id=${currentUserId}`);
+        res = await fetch(`${API_BASE_URL}/friends/sent?user_id=${currentUserId}`);
+
         if (res.ok) {
           const edges = await res.json();
           const found = edges.map(e => e.friend).find(f => f.user_id === userId);
@@ -67,7 +72,8 @@ const ViewProfile = ({ userId, currentUserId, onClose, initialUser }) => {
         }
 
         // 4) Discover (no relation)
-        res = await fetch(`${API_BASE}/friends/find?user_id=${currentUserId}`);
+        res = await fetch(`${API_BASE_URL}/friends/find?user_id=${currentUserId}`);
+
         if (res.ok) {
           const list = await res.json();
           const found = list.find(u => u.user_id === userId);
@@ -80,7 +86,8 @@ const ViewProfile = ({ userId, currentUserId, onClose, initialUser }) => {
         }
 
         // 5) Fallback: /users (last resort)
-        res = await fetch(`${API_BASE}/users`);
+        res = await fetch(`${API_BASE_URL}/users`);
+
         if (res.ok) {
           const list = await res.json();
           const found = list.find(u => u.user_id === userId);

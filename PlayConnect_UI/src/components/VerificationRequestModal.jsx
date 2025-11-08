@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { FileText, Image, X, Paperclip, ChevronDown, ChevronUp } from "lucide-react";
 import axios from "axios";
+import API_BASE_URL from "../Api/config";
+
 
 export default function VerificationRequestModal({ isOpen, onClose, coachId }) {
   const [message, setMessage] = useState("");
@@ -12,7 +14,7 @@ export default function VerificationRequestModal({ isOpen, onClose, coachId }) {
 
   if (!isOpen) return null;
 
-  const API_BASE = import.meta.env?.VITE_API_URL || "http://127.0.0.1:8000";
+  
 
   // ✅ allow multiple files
   const handleFilesChange = (e) => {
@@ -48,7 +50,8 @@ export default function VerificationRequestModal({ isOpen, onClose, coachId }) {
       files.forEach((file) => formData.append("documents", file)); // backend expects 'documents'
 
       // ✅ send to correct backend route
-      const res = await axios.post(`${API_BASE}/coaches/request-verification`, formData, {
+      const res = await axios.post(`${API_BASE_URL}/coaches/request-verification`, formData, {
+
         headers: { "Content-Type": "multipart/form-data" },
       });
 

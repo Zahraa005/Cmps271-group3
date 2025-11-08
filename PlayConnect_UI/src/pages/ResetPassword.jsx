@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import API_BASE_URL from '../Api/config';
 
 export default function ResetPassword() {
   const params = new URLSearchParams(window.location.search);
@@ -25,8 +26,8 @@ export default function ResetPassword() {
 
     setLoading(true);
     try {
-      const BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-      const res = await fetch(`${BASE}/reset-password`, {
+      const res = await fetch(`${API_BASE_URL}/reset-password`, {
+
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

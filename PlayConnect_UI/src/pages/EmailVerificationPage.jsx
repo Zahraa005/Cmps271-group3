@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import ThemeToggle from "../theme/ThemeToggle";
+import API_BASE_URL from '../Api/config';
 
 export default function EmailVerificationPage() {
   const [searchParams] = useSearchParams();
@@ -25,7 +26,7 @@ export default function EmailVerificationPage() {
   const verifyEmail = async (emailAddress) => {
     console.log("Attempting to verify email:", emailAddress);
     try {
-      const response = await fetch("http://127.0.0.1:8000/verify-email", {
+      const response = await fetch(`${API_BASE_URL}/verify-email`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -60,7 +61,7 @@ export default function EmailVerificationPage() {
 
     setIsResending(true);
     try {
-      const response = await fetch("http://127.0.0.1:8000/resend-verification", {
+      const response = await fetch(`${API_BASE_URL}/resend-verification`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

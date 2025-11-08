@@ -2,6 +2,7 @@
 import { useAuth } from "../contexts/AuthContext";
 import ThemeToggle from "../theme/ThemeToggle";
 import { useNavigate } from "react-router-dom";
+import API_BASE_URL from '../Api/config';
 
 function classNames(...xs) {
   return xs.filter(Boolean).join(" ");
@@ -93,8 +94,7 @@ export default function LoginPage() {
     try {
       setIsLoadingForgot(true);
       // Use Vite env var with sensible local fallback
-      const BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-      const res = await fetch(`${BASE}/forgot-password`, {
+      const res = await fetch(`${API_BASE_URL}/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),

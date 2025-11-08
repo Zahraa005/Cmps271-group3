@@ -1,4 +1,4 @@
-import { reportAPI } from "../Api/reportAPI";
+import { reportAPI } from "../Api/reportApi";
 import React, { useState } from "react";
 
 const ReportModal = ({ isOpen, onClose, type, targetName }) => {

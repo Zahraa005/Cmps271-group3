@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Search, UserPlus, UserCheck, X } from "lucide-react";
 import ViewProfile from "../components/ViewProfile";
+import API_BASE_URL from '../Api/config';
 
 
 /**
@@ -19,8 +20,6 @@ function useCurrentUserId() {
       : null;
 }
 
-// Change this to your API base if needed:
-const API_BASE = import.meta?.env?.VITE_API_URL || "http://localhost:8000";
 
 export default function FriendsPage() {
   const [tab, setTab] = useState("friends");
@@ -70,14 +69,14 @@ export default function FriendsPage() {
 
   // ---------- API calls ----------
   async function apiGet(path) {
-    const url = `${API_BASE}${path}`;
+    const url = `${API_BASE_URL}${path}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
     return res.json();
   }
 
   async function apiPost(path, body) {
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -90,7 +89,7 @@ export default function FriendsPage() {
   }
 
   async function apiPut(path, body) {
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -103,7 +102,7 @@ export default function FriendsPage() {
   }
 
   async function apiDelete(path) {
-    const res = await fetch(`${API_BASE}${path}`, { method: "DELETE" });
+    const res = await fetch(`${API_BASE_URL}${path}`, { method: "DELETE" });
     if (!res.ok) {
       const t = await res.text().catch(() => "");
       throw new Error(`DELETE ${path} failed: ${res.status} ${t}`);

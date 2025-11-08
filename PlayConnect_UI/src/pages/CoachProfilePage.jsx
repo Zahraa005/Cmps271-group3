@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { Star, MapPin, Calendar, MessageCircle, Heart, Share2, Award, Users, Clock, CheckCircle, Video } from "lucide-react";
 import axios from "axios";
-
+import API_BASE_URL from '../Api/config';
 
 export default function CoachProfilePage() {
   const { coachId } = useParams();
@@ -19,12 +19,11 @@ export default function CoachProfilePage() {
     window.location.href = "/login";
   };
 
-
   useEffect(() => {
     const fetchCoach = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`http://127.0.0.1:8000/coaches/${coachId}`);
+        const res = await fetch(`${API_BASE_URL}/coaches/${coachId}`);
         if (!res.ok) throw new Error("Coach not found");
         const data = await res.json();
         setCoach(data);
@@ -108,7 +107,6 @@ export default function CoachProfilePage() {
           >
             Logout
           </button>
-
         </div>
       </div>
 
@@ -119,34 +117,32 @@ export default function CoachProfilePage() {
           <div className="bg-gradient-to-r from-indigo-900/40 to-fuchsia-900/40 p-8">
             <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
               {/* Avatar */}
-<div className="relative">
-  {coach.avatar_url && coach.avatar_url.trim() !== "" ? (
-    <img
-      src={coach.avatar_url}
-      alt={`${coach.first_name} ${coach.last_name}`}
-      onError={(e) => {
-        // hide broken image and fallback to initials
-        e.target.style.display = "none";
-        e.target.parentNode.querySelector(".fallback-avatar").style.display = "flex";
-      }}
-      className="w-32 h-32 rounded-full object-cover border-4 border-neutral-900"
-    />
-  ) : null}
+              <div className="relative">
+                {coach.avatar_url && coach.avatar_url.trim() !== "" ? (
+                  <img
+                    src={coach.avatar_url}
+                    alt={`${coach.first_name} ${coach.last_name}`}
+                    onError={(e) => {
+                      e.target.style.display = "none";
+                      e.target.parentNode.querySelector(".fallback-avatar").style.display = "flex";
+                    }}
+                    className="w-32 h-32 rounded-full object-cover border-4 border-neutral-900"
+                  />
+                ) : null}
 
-  {/* Fallback initials avatar (hidden only when image is shown successfully) */}
-  <div
-    className="fallback-avatar w-32 h-32 rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center text-white font-bold text-4xl border-4 border-neutral-900"
-    style={{ display: coach.avatar_url ? "none" : "flex" }}
-  >
-    {getInitials(coach.first_name, coach.last_name)}
-  </div>
+                <div
+                  className="fallback-avatar w-32 h-32 rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center text-white font-bold text-4xl border-4 border-neutral-900"
+                  style={{ display: coach.avatar_url ? "none" : "flex" }}
+                >
+                  {getInitials(coach.first_name, coach.last_name)}
+                </div>
 
-  {coach.isverified && (
-    <div className="absolute -bottom-2 -right-2 bg-green-500 rounded-full p-2 border-4 border-neutral-900">
-      <CheckCircle size={24} className="text-white" />
-    </div>
-  )}
-</div>
+                {coach.isverified && (
+                  <div className="absolute -bottom-2 -right-2 bg-green-500 rounded-full p-2 border-4 border-neutral-900">
+                    <CheckCircle size={24} className="text-white" />
+                  </div>
+                )}
+              </div>
 
               {/* Info */}
               <div className="flex-1">
@@ -180,35 +176,34 @@ export default function CoachProfilePage() {
               {/* Action Buttons */}
               <div className="flex flex-col gap-3 w-full md:w-auto">
                 <button
-  onClick={async () => {
-    try {
-      const userId = Number(localStorage.getItem("user_id"));
-      if (!userId) {
-        alert("Please log in before booking a session.");
-        return;
-      }
+                  onClick={async () => {
+                    try {
+                      const userId = Number(localStorage.getItem("user_id"));
+                      if (!userId) {
+                        alert("Please log in before booking a session.");
+                        return;
+                      }
 
-      const response = await axios.post("http://127.0.0.1:8000/book-session", {
-        game_id: coach.coach_id,   // for now, we’ll assume coach_id maps to session (you can later link real game_id)
-        user_id: userId,
-      });
+                      const response = await axios.post(`${API_BASE_URL}/book-session`, {
+                        game_id: coach.coach_id,
+                        user_id: userId,
+                      });
 
-      alert(response.data.message || "Session booked successfully!");
-    } catch (err) {
-      console.error("Booking error:", err);
-      if (err.response?.data?.detail) {
-        alert(`Error: ${err.response.data.detail}`);
-      } else {
-        alert("Something went wrong while booking the session.");
-      }
-    }
-  }}
-  className="bg-gradient-to-r from-indigo-500 to-fuchsia-500 hover:from-indigo-600 hover:to-fuchsia-600 text-white px-6 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 shadow-lg shadow-fuchsia-500/30"
->
-  <Calendar size={18} />
-  Book Session
-</button>
-
+                      alert(response.data.message || "Session booked successfully!");
+                    } catch (err) {
+                      console.error("Booking error:", err);
+                      if (err.response?.data?.detail) {
+                        alert(`Error: ${err.response.data.detail}`);
+                      } else {
+                        alert("Something went wrong while booking the session.");
+                      }
+                    }
+                  }}
+                  className="bg-gradient-to-r from-indigo-500 to-fuchsia-500 hover:from-indigo-600 hover:to-fuchsia-600 text-white px-6 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 shadow-lg shadow-fuchsia-500/30"
+                >
+                  <Calendar size={18} />
+                  Book Session
+                </button>
                   
                 <div className="flex gap-2">
                   <button className="flex-1 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg transition flex items-center justify-center gap-2">

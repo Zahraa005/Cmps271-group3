@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import ReportModal from "./ReportModal";
+import API_BASE_URL from "../Api/config";
+
 
 const MatchHistoryPanel = ({ userId }) => {
   const [matches, setMatches] = useState([]);
@@ -58,7 +60,8 @@ const MatchHistoryPanel = ({ userId }) => {
     // ✅ Fetch actual match history from API (uncomment when backend is ready)
     const fetchHistory = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/match-history/${userId}`);
+        const res = await fetch(`${API_BASE_URL}/match-history/${userId}`);
+
         if (!res.ok) throw new Error(`Failed to fetch match history: ${res.status}`);
         const data = await res.json();
         setMatches(data);

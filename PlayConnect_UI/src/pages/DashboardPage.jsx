@@ -3,6 +3,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import MatchHistoryPanel from "../components/MatchHistoryPanel";
 import NotificationBell from "../components/NotificationBell";
+import API_BASE_URL from '../Api/config';
 
 
 function classNames(...xs) {
@@ -135,7 +136,7 @@ useEffect(() => {
       if (spotsFilter) params.set("spots", spotsFilter);
       if (searchText.trim()) params.set("search", searchText.trim());
 
-      const response = await fetch(`${API_BASE}/dashboard/games?${params.toString()}`);
+      const response = await fetch(`${API_BASE_URL}/dashboard/games?${params.toString()}`);
       if (!response.ok) {
         setToast("Failed to fetch games");
         setGames([]);
@@ -166,7 +167,7 @@ useEffect(() => {
 
   const fetchSports = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/sports');
+      const response = await fetch(`${API_BASE_URL}/sports`);
       if (response.ok) {
         const data = await response.json();
         setSports(data);
@@ -181,7 +182,7 @@ useEffect(() => {
   };
 
   // ===== Waitlist helpers =====
-  const API_BASE = import.meta.env?.VITE_API_URL || "http://127.0.0.1:8000";
+  
 
   // ===== Profile helpers =====
   const fetchProfileData = async () => {
@@ -189,7 +190,8 @@ useEffect(() => {
     
     setProfileLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/profile/${user.user_id}`);
+      const response = await fetch(`${API_BASE_URL}/profile/${user.user_id}`);
+
       if (response.ok) {
         const profile = await response.json();
         setProfileData(profile);
@@ -246,7 +248,8 @@ useEffect(() => {
         profileDataToSave.avatar_url = base64;
       }
 
-      const response = await fetch(`${API_BASE}/profile/${user.user_id}`, {
+      const response = await fetch(`${API_BASE_URL}/profile/${user.user_id}`, {
+
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -305,7 +308,8 @@ useEffect(() => {
   // ===== Participants helpers =====
   async function fetchParticipantsInfo(gameId) {
     try {
-      const res = await fetch(`${API_BASE}/game-participants?game_id=${encodeURIComponent(gameId)}`);
+      const res = await fetch(`${API_BASE_URL}/game-participants?game_id=${encodeURIComponent(gameId)}`);
+
       if (!res.ok) throw new Error(`Failed to fetch participants (${res.status})`);
       const list = await res.json();
       const count = Array.isArray(list) ? list.length : 0;
@@ -331,7 +335,8 @@ useEffect(() => {
     }
     try {
       setJoiningGameId(gameId);
-      const res = await fetch(`${API_BASE}/game-participants/join`, {
+      const res = await fetch(`${API_BASE_URL}/game-participants/join`, {
+
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ game_id: gameId, user_id: user.user_id, role: "PLAYER" })
@@ -367,7 +372,8 @@ useEffect(() => {
     }
     try {
       setLeavingGameId(gameId);
-      const res = await fetch(`${API_BASE}/game-participants/leave`, {
+      const res = await fetch(`${API_BASE_URL}/game-participants/leave`, {
+
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ game_id: gameId, user_id: user.user_id })
@@ -397,7 +403,8 @@ useEffect(() => {
     try {
       setWaitlistLoading(prev => ({ ...prev, [gameId]: true }));
       setWaitlistError(prev => ({ ...prev, [gameId]: "" }));
-      const res = await fetch(`${API_BASE}/game-instances/${gameId}/waitlist`);
+      const res = await fetch(`${API_BASE_URL}/game-instances/${gameId}/waitlist`);
+
       if (!res.ok) throw new Error(`Failed to fetch waitlist (${res.status})`);
       const data = await res.json();
       setWaitlists(prev => ({ ...prev, [gameId]: Array.isArray(data) ? data : [] }));
@@ -410,7 +417,8 @@ useEffect(() => {
 
   async function joinWaitlist(gameId, userId) {
     try {
-      const res = await fetch(`${API_BASE}/game-instances/${gameId}/waitlist`, {
+      const res = await fetch(`${API_BASE_URL}/game-instances/${gameId}/waitlist`, {
+
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: userId }),
@@ -425,7 +433,8 @@ useEffect(() => {
 
   async function leaveWaitlist(gameId, userId) {
     try {
-      const res = await fetch(`${API_BASE}/game-instances/${gameId}/waitlist/${userId}`, {
+      const res = await fetch(`${API_BASE_URL}/game-instances/${gameId}/waitlist/${userId}`, {
+
         method: "DELETE",
       });
       if (!res.ok) throw new Error(`Leave failed (${res.status})`);
@@ -440,7 +449,8 @@ useEffect(() => {
     if (!window.confirm("Are you sure you want to delete this game?")) return;
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/game-instances/${gameId}`, {
+      const response = await fetch(`${API_BASE_URL}/game-instances/${gameId}`, {
+
         method: "DELETE",
       });
 
@@ -463,7 +473,8 @@ useEffect(() => {
     if (!editingGame) return;
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/game-instances/${editingGame.game_id}`, {
+      const response = await fetch(`${API_BASE_URL}/game-instances/${editingGame.game_id}`, {
+
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editingGame),
@@ -535,7 +546,8 @@ useEffect(() => {
 
       console.log('Sending data to API:', apiData); // Debug log
 
-      const response = await fetch('http://127.0.0.1:8000/game-instances', {
+      const response = await fetch(`${API_BASE_URL}/game-instances`, {
+
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
