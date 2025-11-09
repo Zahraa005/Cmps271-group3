@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import MatchHistoryPanel from "../components/MatchHistoryPanel";
 import NotificationBell from "../components/NotificationBell";
-import API_BASE_URL from '../Api/config';
+import API_BASE_URL from "../Api/config";
+import FilterModal from "../components/FilterModal";
 
 
 function classNames(...xs) {
@@ -18,15 +18,6 @@ export default function DashboardPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   // Edit state
   const [editingGame, setEditingGame] = useState(null); // holds the game being edited
-  // Profile modal state
-  const [showProfileModal, setShowProfileModal] = useState(false);
-  const [profileData, setProfileData] = useState(null);
-  const [profileLoading, setProfileLoading] = useState(false);
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [editProfileData, setEditProfileData] = useState({});
-  const [profileSaving, setProfileSaving] = useState(false);
-  const [profilePictureFile, setProfilePictureFile] = useState(null);
-  const [profilePicturePreview, setProfilePicturePreview] = useState(null);
 
   // Waitlist state
   const [waitlists, setWaitlists] = useState({});           // { [gameId]: [{user_id, name, joined_at}, ...] }
@@ -71,10 +62,19 @@ export default function DashboardPage() {
   const [total, setTotal] = useState(0);
   const [hasNext, setHasNext] = useState(false);
   const [searchText, setSearchText] = useState("");
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const activeFilterCount = [
+    searchText.trim(),
+    sportFilter,
+    statusFilter,
+    skillFilter,
+    fromISO,
+    toISO,
+    spotsFilter,
+    sort !== "start_time:asc" ? sort : "",
+  ].filter(Boolean).length;
 
   //Notifications
-  const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
 
   // Toast cleanup
   useEffect(() => {
@@ -181,135 +181,37 @@ useEffect(() => {
     }
   };
 
-  // ===== Waitlist helpers =====
-  
+  const resetFilters = () => {
+    setSportFilter("");
+    setStatusFilter("");
+    setSkillFilter("");
+    setFromISO("");
+    setToISO("");
+    setSpotsFilter("");
+    setSort("start_time:asc");
+    setSearchText("");
+    setPage(1);
+    setPageSize(12);
+  };
 
-  // ===== Profile helpers =====
-  const fetchProfileData = async () => {
-    if (!user?.user_id) return;
-    
-    setProfileLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/profile/${user.user_id}`);
+  const handleApplyFilters = () => {
+    setPage(1);
+    setShowFilterModal(false);
+  };
 
-      if (response.ok) {
-        const profile = await response.json();
-        setProfileData(profile);
-      } else {
-        setToast('Failed to load profile data');
-      }
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-      setToast('Failed to load profile data');
-    } finally {
-      setProfileLoading(false);
-    }
+  const handleClearFilters = () => {
+    resetFilters();
+    setShowFilterModal(false);
   };
 
   const handleProfileClick = () => {
-    setShowProfileModal(true);
-    if (!profileData) {
-      fetchProfileData();
-    }
-  };
-
-  const handleEditProfile = () => {
-    if (profileData) {
-      setEditProfileData({
-        first_name: profileData.first_name || '',
-        last_name: profileData.last_name || '',
-        age: profileData.age || '',
-        bio: profileData.bio || '',
-        favorite_sport: profileData.favorite_sport || '',
-        role: profileData.role || 'player'
-      });
-      // Reset profile picture state
-      setProfilePictureFile(null);
-      setProfilePicturePreview(null);
-      setIsEditingProfile(true);
-    }
-  };
-
-  const handleSaveProfile = async () => {
-    if (!user?.user_id) return;
-    
-    setProfileSaving(true);
-    try {
-      // Prepare profile data with avatar_url
-      const profileDataToSave = { ...editProfileData };
-      
-      // If a new profile picture was uploaded, convert it to base64
-      if (profilePictureFile) {
-        const base64 = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.readAsDataURL(profilePictureFile);
-        });
-        profileDataToSave.avatar_url = base64;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/profile/${user.user_id}`, {
-
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(profileDataToSave),
-      });
-
-      if (response.ok) {
-        const updatedProfile = await response.json();
-        setProfileData(updatedProfile);
-        setIsEditingProfile(false);
-        setProfilePictureFile(null);
-        setProfilePicturePreview(null);
-        setToast('Profile updated successfully!');
-      } else {
-        const errorData = await response.json();
-        setToast(`Failed to update profile: ${errorData.detail || 'Unknown error'}`);
-      }
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      setToast('Failed to update profile');
-    } finally {
-      setProfileSaving(false);
-    }
-  };
-
-  const handleCancelEdit = () => {
-    setIsEditingProfile(false);
-    setEditProfileData({});
-    setProfilePictureFile(null);
-    setProfilePicturePreview(null);
-  };
-
-  const handleEditInputChange = (field, value) => {
-    setEditProfileData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const handleProfilePictureChange = (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    
-    setProfilePictureFile(file);
-    const reader = new FileReader();
-    reader.onload = (ev) => setProfilePicturePreview(ev.target.result);
-    reader.readAsDataURL(file);
-  };
-
-  const removeProfilePicture = () => {
-    setProfilePictureFile(null);
-    setProfilePicturePreview(null);
+    navigate("/profile");
   };
 
   // ===== Participants helpers =====
   async function fetchParticipantsInfo(gameId) {
     try {
       const res = await fetch(`${API_BASE_URL}/game-participants?game_id=${encodeURIComponent(gameId)}`);
-
       if (!res.ok) throw new Error(`Failed to fetch participants (${res.status})`);
       const list = await res.json();
       const count = Array.isArray(list) ? list.length : 0;
@@ -336,7 +238,6 @@ useEffect(() => {
     try {
       setJoiningGameId(gameId);
       const res = await fetch(`${API_BASE_URL}/game-participants/join`, {
-
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ game_id: gameId, user_id: user.user_id, role: "PLAYER" })
@@ -373,7 +274,6 @@ useEffect(() => {
     try {
       setLeavingGameId(gameId);
       const res = await fetch(`${API_BASE_URL}/game-participants/leave`, {
-
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ game_id: gameId, user_id: user.user_id })
@@ -404,7 +304,6 @@ useEffect(() => {
       setWaitlistLoading(prev => ({ ...prev, [gameId]: true }));
       setWaitlistError(prev => ({ ...prev, [gameId]: "" }));
       const res = await fetch(`${API_BASE_URL}/game-instances/${gameId}/waitlist`);
-
       if (!res.ok) throw new Error(`Failed to fetch waitlist (${res.status})`);
       const data = await res.json();
       setWaitlists(prev => ({ ...prev, [gameId]: Array.isArray(data) ? data : [] }));
@@ -418,7 +317,6 @@ useEffect(() => {
   async function joinWaitlist(gameId, userId) {
     try {
       const res = await fetch(`${API_BASE_URL}/game-instances/${gameId}/waitlist`, {
-
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: userId }),
@@ -434,7 +332,6 @@ useEffect(() => {
   async function leaveWaitlist(gameId, userId) {
     try {
       const res = await fetch(`${API_BASE_URL}/game-instances/${gameId}/waitlist/${userId}`, {
-
         method: "DELETE",
       });
       if (!res.ok) throw new Error(`Leave failed (${res.status})`);
@@ -449,8 +346,7 @@ useEffect(() => {
     if (!window.confirm("Are you sure you want to delete this game?")) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/game-instances/${gameId}`, {
-
+      const response = await fetch(`http://127.0.0.1:8000/game-instances/${gameId}`, {
         method: "DELETE",
       });
 
@@ -473,8 +369,7 @@ useEffect(() => {
     if (!editingGame) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/game-instances/${editingGame.game_id}`, {
-
+      const response = await fetch(`http://127.0.0.1:8000/game-instances/${editingGame.game_id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editingGame),
@@ -570,8 +465,7 @@ useEffect(() => {
 
       console.log('Sending data to API:', apiData); // Debug log
 
-      const response = await fetch(`${API_BASE_URL}/game-instances`, {
-
+      const response = await fetch('http://127.0.0.1:8000/game-instances', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -734,45 +628,8 @@ useEffect(() => {
                 {showCreateForm ? "Cancel" : "Create Game"}
               </button>
 
-              <button
-                onClick={logout}
-                className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition-colors"
-              >
-                Logout
-              </button>
-
               
-              {/* Notification Circle (inline) */}
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => {
-                    console.log("notifications clicked");
-                    // TODO: open dropdown / mark as read
-                  }}
-                  onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && console.log("notifications clicked")}
-                  title="Notifications"
-                  aria-label="Notifications"
-                  className="relative w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center
-                            text-white font-semibold text-sm hover:bg-neutral-700 cursor-pointer transition-colors"
-                >
-                  {/* Bell icon (SVG, no extra libs) */}
-                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 0 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5" />
-                    <path d="M9 17a3 3 0 0 0 6 0" />
-                  </svg>
-
-                  {/* Unread badge */}
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 inline-flex items-center justify-center
-                                    h-5 min-w-[20px] px-1 rounded-full bg-violet-500 text-white
-                                    text-[10px] font-semibold shadow">
-                      {unreadCount > 99 ? "99+" : unreadCount}
-                    </span>
-                  )}
-                </div>
-
-
+              {user?.user_id ? <NotificationBell userId={user.user_id} /> : null}
               {/* Profile Circle */}
               <div
                 onClick={handleProfileClick}
@@ -822,12 +679,6 @@ useEffect(() => {
             <div className="flex-grow max-w-xs h-[1px] bg-gradient-to-r from-transparent via-neutral-700 to-transparent"></div>
           </div>
         </header>
-
-        {user && (
-          <div className="mt-10">
-            <MatchHistoryPanel userId={user.user_id} />
-          </div>
-        )}
 
         {/* Create Game Modal */}
         {showCreateForm && (
@@ -1050,130 +901,71 @@ useEffect(() => {
             </div>
           </div>
         )}
-        {/* Filter Bar */}
-        <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          <input
-            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
-            placeholder="Search location/notes"
-            value={searchText}
-            onChange={(e) => { setSearchText(e.target.value); setPage(1); }}
-          />
-
-          <select
-            className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
-            value={sportFilter}
-            onChange={(e) => { setSportFilter(e.target.value); setPage(1); }}
-          >
-            <option value="">All sports</option>
-            {sports.map(s => (
-              <option key={s.sport_id} value={s.sport_id}>{s.name}</option>
-            ))}
-          </select>
-
-            <select
-              className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowFilterModal(true)}
+              className="flex items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-900/70 px-4 py-2 text-sm font-semibold text-white transition hover:border-violet-500/60 hover:bg-neutral-900"
             >
-              <option value="">Any status</option>
-              <option value="Open">Open</option>
-              <option value="Full">Full</option>
-              <option value="Cancelled">Cancelled</option>
-            </select>
+              <svg
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M3 5h18M6 12h12M10 19h4" />
+              </svg>
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="rounded-full bg-violet-500/20 px-2 py-0.5 text-xs text-violet-200">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+            <span className="text-sm text-neutral-400">{total} games</span>
+          </div>
 
-            <select
-              className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
-              value={skillFilter}
-              onChange={(e) => { setSkillFilter(e.target.value); setPage(1); }}
+          <div className="flex items-center gap-3 text-white">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1 || loading}
+              className="px-2 text-sm font-semibold hover:text-violet-300 transition"
             >
-              <option value="">Any skill</option>
-              <option value="Beginner">Beginner</option>
-              <option value="Intermediate">Intermediate</option>
-              <option value="Advanced">Advanced</option>
-            </select>
-
-            <input
-              type="datetime-local"
-              className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
-              value={fromISO ? fromISO.slice(0,16) : ""}
-              onChange={(e) => { setFromISO(e.target.value ? new Date(e.target.value).toISOString() : ""); setPage(1); }}
-            />
-            <input
-              type="datetime-local"
-              className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
-              value={toISO ? toISO.slice(0,16) : ""}
-              onChange={(e) => { setToISO(e.target.value ? new Date(e.target.value).toISOString() : ""); setPage(1); }}
-            />
-
-            <select
-              className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
-              value={spotsFilter}
-              onChange={(e) => { setSpotsFilter(e.target.value); setPage(1); }}
+              ←
+            </button>
+            <span className="text-xs uppercase tracking-wide text-neutral-400">
+              Page {page}
+            </span>
+            <button
+              onClick={() => hasNext && setPage((p) => p + 1)}
+              disabled={!hasNext || loading}
+              className="px-2 text-sm font-semibold hover:text-violet-300 transition"
             >
-              <option value="">Any spots</option>
-              <option value="available">Spots available</option>
-              <option value="full">Full</option>
-            </select>
+              →
+            </button>
 
-            <select
-              className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white"
-              value={sort}
-              onChange={(e) => { setSort(e.target.value); setPage(1); }}
-            >
-              <option value="start_time:asc">Start time ↑</option>
-              <option value="start_time:desc">Start time ↓</option>
-              <option value="created_at:asc">Created ↑</option>
-              <option value="created_at:desc">Created ↓</option>
-            </select>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => { 
-                  setSportFilter(""); setStatusFilter(""); setSkillFilter("");
-                  setFromISO(""); setToISO(""); setSpotsFilter(""); setSort("start_time:asc");
-                  setSearchText(""); setPage(1); setPageSize(12);
+            <div className="relative">
+              <select
+                className="appearance-none rounded-full bg-neutral-900/40 px-4 py-2 pr-8 text-sm text-white focus:outline-none border border-transparent hover:border-violet-500/40 transition"
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
                 }}
-                className="flex-1 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg"
               >
-                Clear
-              </button>
-              <button
-                onClick={() => fetchGames()}
-                className="flex-1 px-4 py-2 bg-violet-500 hover:bg-violet-400 text-white rounded-lg"
-              >
-                Apply
-              </button>
+                {[12, 24, 48].map((s) => (
+                  <option key={s} value={s}>
+                    {s}/page
+                  </option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400">
+                ▼
+              </span>
             </div>
           </div>
-
-          {/* Paging controls (simple) */}
-          <div className="flex items-center gap-2 mb-4">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              className="px-3 py-1 rounded border border-neutral-700 hover:bg-neutral-800 text-white"
-              disabled={page === 1 || loading}
-            >
-              Prev
-            </button>
-            <span className="text-sm text-neutral-400">Page {page}</span>
-            <button
-              onClick={() => hasNext && setPage(p => p + 1)}
-              className="px-3 py-1 rounded border border-neutral-700 hover:bg-neutral-800 text-white"
-              disabled={!hasNext || loading}
-            >
-              Next
-            </button>
-
-            <select
-              className="ml-3 px-2 py-1 rounded border border-neutral-700 bg-neutral-900 text-white"
-              value={pageSize}
-              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
-            >
-              {[12, 24, 48].map(s => <option key={s} value={s}>{s}/page</option>)}
-            </select>
-
-            <span className="ml-auto text-sm text-neutral-400">{total} games</span>
-          </div>
+        </div>
 
         {/* Games List */}
         <div className="space-y-6">
@@ -1631,269 +1423,7 @@ useEffect(() => {
       )}
 
 
-      {/* Profile Modal */}
-      {showProfileModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm overflow-y-auto">
-          <div className="relative bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl p-8 max-w-2xl w-full mx-4 my-10">
-            {/* Close button */}
-            <button
-              type="button"
-              onClick={() => setShowProfileModal(false)}
-              className="absolute top-6 right-4 text-neutral-400 hover:text-white hover:scale-110 transition-transform text-2xl leading-none"
-              aria-label="Close"
-            >
-              ×
-            </button>
 
-            {/* Title */}
-            <div className="mb-6">
-              <h2 className="text-2xl font-semibold text-white">Profile Details</h2>
-              <p className="text-sm text-neutral-400 mt-1">
-                View and manage your profile information.
-              </p>
-            </div>
-
-            {/* Profile Content */}
-            {profileLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="flex items-center gap-2 text-neutral-400">
-                  <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                  </svg>
-                  Loading profile...
-                </div>
-              </div>
-            ) : profileData ? (
-              <div className="space-y-6">
-                {/* Profile Picture */}
-                <div className="flex items-center gap-4">
-                  <div className="w-20 h-20 rounded-full bg-neutral-800 flex items-center justify-center text-white font-semibold text-2xl overflow-hidden">
-                    {profilePicturePreview ? (
-                      <img 
-                        src={profilePicturePreview} 
-                        alt="Profile Preview" 
-                        className="w-full h-full object-cover rounded-full"
-                      />
-                    ) : profileData?.avatar_url ? (
-                      <img 
-                        src={profileData.avatar_url} 
-                        alt="Profile" 
-                        className="w-full h-full object-cover rounded-full"
-                      />
-                    ) : (
-                      (isEditingProfile ? editProfileData.first_name : profileData.first_name) 
-                        ? (isEditingProfile ? editProfileData.first_name : profileData.first_name).charAt(0).toUpperCase() 
-                        : "?"
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-semibold text-white">
-                      {isEditingProfile ? (
-                        <input
-                          type="text"
-                          value={editProfileData.first_name || ''}
-                          onChange={(e) => handleEditInputChange('first_name', e.target.value)}
-                          placeholder="First Name"
-                          className="bg-transparent border-b border-neutral-600 text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
-                        />
-                      ) : (
-                        profileData.first_name && profileData.last_name 
-                          ? `${profileData.first_name} ${profileData.last_name}`
-                          : "User"
-                      )}
-                    </h3>
-                    {isEditingProfile && (
-                      <div className="mt-2 flex gap-2">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleProfilePictureChange}
-                          className="hidden"
-                          id="profile-picture-upload"
-                        />
-                        <label
-                          htmlFor="profile-picture-upload"
-                          className="px-3 py-1 bg-violet-500 hover:bg-violet-400 text-white rounded text-sm cursor-pointer transition-colors"
-                        >
-                          {profilePictureFile ? "Change Photo" : "Upload Photo"}
-                        </label>
-                        {profilePictureFile && (
-                          <button
-                            onClick={removeProfilePicture}
-                            className="px-3 py-1 bg-neutral-700 hover:bg-neutral-600 text-white rounded text-sm transition-colors"
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Profile Details */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm text-neutral-300 mb-1">First Name</label>
-                    {isEditingProfile ? (
-                      <input
-                        type="text"
-                        value={editProfileData.first_name || ''}
-                        onChange={(e) => handleEditInputChange('first_name', e.target.value)}
-                        className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                        placeholder="Enter first name"
-                      />
-                    ) : (
-                      <div className="p-3 bg-neutral-800 rounded-lg text-white">
-                        {profileData.first_name || 'Not set'}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm text-neutral-300 mb-1">Last Name</label>
-                    {isEditingProfile ? (
-                      <input
-                        type="text"
-                        value={editProfileData.last_name || ''}
-                        onChange={(e) => handleEditInputChange('last_name', e.target.value)}
-                        className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                        placeholder="Enter last name"
-                      />
-                    ) : (
-                      <div className="p-3 bg-neutral-800 rounded-lg text-white">
-                        {profileData.last_name || 'Not set'}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm text-neutral-300 mb-1">Age</label>
-                    {isEditingProfile ? (
-                      <input
-                        type="number"
-                        value={editProfileData.age || ''}
-                        onChange={(e) => handleEditInputChange('age', parseInt(e.target.value) || '')}
-                        className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                        placeholder="Enter age"
-                        min="1"
-                        max="120"
-                      />
-                    ) : (
-                      <div className="p-3 bg-neutral-800 rounded-lg text-white">
-                        {profileData.age || 'Not set'}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm text-neutral-300 mb-1">Role</label>
-                    {isEditingProfile ? (
-                      <select
-                        value={editProfileData.role || 'player'}
-                        onChange={(e) => handleEditInputChange('role', e.target.value)}
-                        className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                      >
-                        <option value="player">Player</option>
-                        <option value="coach">Coach</option>
-                        <option value="organizer">Organizer</option>
-                      </select>
-                    ) : (
-                      <div className="p-3 bg-neutral-800 rounded-lg text-white">
-                        {profileData.role || 'Player'}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm text-neutral-300 mb-1">Favorite Sport</label>
-                    {isEditingProfile ? (
-                      <select
-                        value={editProfileData.favorite_sport || ''}
-                        onChange={(e) => handleEditInputChange('favorite_sport', e.target.value)}
-                        className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                      >
-                        <option value="">Select a sport</option>
-                        {sports.map((sport) => (
-                          <option key={sport.sport_id} value={sport.name}>
-                            {sport.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="p-3 bg-neutral-800 rounded-lg text-white">
-                        {profileData.favorite_sport || 'Not set'}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Bio */}
-                <div>
-                  <label className="block text-sm text-neutral-300 mb-1">Bio</label>
-                  {isEditingProfile ? (
-                    <textarea
-                      value={editProfileData.bio || ''}
-                      onChange={(e) => handleEditInputChange('bio', e.target.value)}
-                      className="w-full rounded-lg bg-neutral-950/70 border border-neutral-800 px-3 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
-                      placeholder="Tell others about you..."
-                      rows="3"
-                      maxLength="160"
-                    />
-                  ) : (
-                    <div className="p-3 bg-neutral-800 rounded-lg text-white">
-                      {profileData.bio || 'No bio provided'}
-                    </div>
-                  )}
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-3 pt-4">
-                  {isEditingProfile ? (
-                    <>
-                      <button
-                        onClick={handleSaveProfile}
-                        disabled={profileSaving}
-                        className="flex-1 py-2 bg-violet-500 hover:bg-violet-400 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {profileSaving ? 'Saving...' : 'Save Changes'}
-                      </button>
-                      <button
-                        onClick={handleCancelEdit}
-                        disabled={profileSaving}
-                        className="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={handleEditProfile}
-                        className="flex-1 py-2 bg-violet-500 hover:bg-violet-400 text-white rounded-lg font-medium transition-colors"
-                      >
-                        Edit Profile
-                      </button>
-                      <button
-                        onClick={() => setShowProfileModal(false)}
-                        className="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium transition-colors"
-                      >
-                        Close
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <p className="text-neutral-400">Failed to load profile data</p>
-                <button
-                  onClick={fetchProfileData}
-                  className="mt-4 px-4 py-2 bg-violet-500 hover:bg-violet-400 text-white rounded-lg transition-colors"
-                >
-                  Retry
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Toast */}
       {toast && (
@@ -1901,6 +1431,58 @@ useEffect(() => {
           {toast}
         </div>
       )}
+
+      <FilterModal
+        open={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+        sports={sports}
+        filters={{
+          searchText,
+          sportFilter,
+          statusFilter,
+          skillFilter,
+          fromISO,
+          toISO,
+          spotsFilter,
+          sort,
+        }}
+        handlers={{
+          setSearchText: (val) => {
+            setSearchText(val);
+            setPage(1);
+          },
+          setSportFilter: (val) => {
+            setSportFilter(val);
+            setPage(1);
+          },
+          setStatusFilter: (val) => {
+            setStatusFilter(val);
+            setPage(1);
+          },
+          setSkillFilter: (val) => {
+            setSkillFilter(val);
+            setPage(1);
+          },
+          setFromISO: (val) => {
+            setFromISO(val);
+            setPage(1);
+          },
+          setToISO: (val) => {
+            setToISO(val);
+            setPage(1);
+          },
+          setSpotsFilter: (val) => {
+            setSpotsFilter(val);
+            setPage(1);
+          },
+          setSort: (val) => {
+            setSort(val);
+            setPage(1);
+          },
+        }}
+        onApply={handleApplyFilters}
+        onClear={handleClearFilters}
+      />
     </main>
   );
 }
