@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, TIMESTAMP
+from sqlalchemy import Column, Integer, String, ForeignKey, TIMESTAMP, Text, Numeric
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 
@@ -16,4 +16,6 @@ class MatchHistory(Base):
     score_opponent = Column(Integer, nullable=True)
     result = Column(String, nullable=True)  # e.g., "win", "loss", "draw"
     duration_minutes = Column(Integer, nullable=False)
+    location = Column(Text, nullable=True)
+    cost = Column(Numeric, nullable=True)
     played_at = Column(TIMESTAMP, nullable=False, default=datetime.utcnow)

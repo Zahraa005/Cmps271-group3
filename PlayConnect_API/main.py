@@ -1225,8 +1225,20 @@ async def update_game_instance(game_id: int, game: GameInstanceCreate):
 @app.get("/game-instances", response_model=List[GameInstanceResponse])
 async def get_game_instances():
     try:
+        # Archive past games automatically before fetching
+        try:
+            await archive_past_games()
+        except Exception as e:
+            # Log but don't fail if archiving fails
+            print(f"Warning: Failed to archive past games: {e}")
+        
         async with Database.pool.acquire() as connection:
-            query = 'SELECT * FROM public."Game_instance" ORDER BY created_at DESC'
+            # Filter out past games: only show games where start_time + duration_minutes >= NOW()
+            query = '''
+                SELECT * FROM public."Game_instance"
+                WHERE (start_time + INTERVAL '1 minute' * duration_minutes) >= NOW()
+                ORDER BY created_at DESC
+            '''
             rows = await connection.fetch(query)
             return [GameInstanceResponse(**dict(row)) for row in rows]
     except Exception as e:
@@ -1651,6 +1663,13 @@ async def dashboard_games(
       - page (1-based), page_size
     """
     try:
+        # Archive past games automatically before fetching
+        try:
+            await archive_past_games()
+        except Exception as e:
+            # Log but don't fail if archiving fails
+            print(f"Warning: Failed to archive past games: {e}")
+        
         # --- sanitize paging ---
         page = max(1, page)
         page_size = max(1, min(page_size, 100))
@@ -1683,6 +1702,9 @@ async def dashboard_games(
         # --- dynamic WHERE ---
         conditions = []
         params = []
+
+        # Filter out past games: only show games where start_time + duration_minutes >= NOW()
+        conditions.append("(gi.start_time + INTERVAL '1 minute' * gi.duration_minutes) >= NOW()")
 
         if sport_id is not None:
             conditions.append(f"gi.sport_id = ${len(params) + 1}")
@@ -2098,48 +2120,241 @@ async def unread_count(user_id: int = Query(...)):
     
 @app.get("/match-histories", response_model=List[MatchHistoryRead])
 async def get_match_histories(
+    user_id: Union[int, None] = None,
     player_id: Union[int, None] = None,
     opponent_id: Union[int, None] = None,
     limit: int = 50,
     offset: int = 0,
 ):
     """
-    Retrieve match history records, optionally filtered by player_id/opponent_id.
+    Retrieve match history records, optionally filtered by user_id (shows matches where user is player_id OR opponent_id).
+    If user_id is provided, it takes precedence over player_id/opponent_id.
     """
     try:
         async with Database.pool.acquire() as connection:
-            query = """
-                SELECT match_id, player_id, opponent_id, score_player, score_opponent,
-                       result, duration_minutes, played_at
-                FROM public."Match_Histories"
+            # Filter to show only matches where the user participated
+            # Match histories are only created from games the user joined (from Game_participants)
+            # Group by game (played_at, location, cost, duration_minutes) to show one entry per game
+            if user_id is not None:
+                # Use DISTINCT ON to get one match per game (grouped by played_at, location, cost, duration_minutes)
+                # This ensures users see one entry per game they joined, not one per opponent
+                # DISTINCT ON requires ORDER BY to start with the DISTINCT ON columns
+                base_query = """
+                    SELECT DISTINCT ON (played_at, location, COALESCE(cost, 0), duration_minute)
+                           match_id, player_id, opponent_id, score_player, score_opponent,
+                           result, duration_minute AS duration_minutes, location, cost, played_at
+                    FROM public."Match_Histories"
+                    WHERE (player_id = $1 OR opponent_id = $2)
+                    ORDER BY played_at DESC, location, COALESCE(cost, 0), duration_minute, match_id
+                """
+                params = [user_id, user_id]
+            elif player_id is not None:
+                base_query = """
+                    SELECT DISTINCT ON (played_at, location, COALESCE(cost, 0), duration_minute)
+                           match_id, player_id, opponent_id, score_player, score_opponent,
+                           result, duration_minute AS duration_minutes, location, cost, played_at
+                    FROM public."Match_Histories"
+                    WHERE player_id = $1
+                    ORDER BY played_at DESC, location, COALESCE(cost, 0), duration_minute, match_id
+                """
+                params = [player_id]
+            elif opponent_id is not None:
+                base_query = """
+                    SELECT DISTINCT ON (played_at, location, COALESCE(cost, 0), duration_minute)
+                           match_id, player_id, opponent_id, score_player, score_opponent,
+                           result, duration_minute AS duration_minutes, location, cost, played_at
+                    FROM public."Match_Histories"
+                    WHERE opponent_id = $1
+                    ORDER BY played_at DESC, location, COALESCE(cost, 0), duration_minute, match_id
+                """
+                params = [opponent_id]
+            else:
+                # No filter provided - return empty (security: don't show all matches)
+                return []
+            
+            # Wrap in subquery to apply LIMIT and OFFSET after DISTINCT ON
+            query = f"""
+                SELECT * FROM (
+                    {base_query}
+                ) AS distinct_matches
+                ORDER BY played_at DESC
+                LIMIT {limit} OFFSET {offset}
             """
-            conditions: list[str] = []
-            params: list[object] = []
 
-            if player_id is not None:
-                conditions.append(f"player_id = ${len(params) + 1}")
-                params.append(player_id)
-
-            if opponent_id is not None:
-                conditions.append(f"opponent_id = ${len(params) + 1}")
-                params.append(opponent_id)
-
-            if conditions:
-                query += " WHERE " + " AND ".join(conditions)
-
-            query += " ORDER BY played_at DESC"
-
-            # pagination placeholders must come AFTER existing params
-            limit_idx = len(params) + 1
-            offset_idx = len(params) + 2
-            query += f" LIMIT ${limit_idx} OFFSET ${offset_idx}"
-            params.extend([limit, offset])
-
+            # Debug: print query and params
+            print(f"DEBUG Query: {query}")
+            print(f"DEBUG Params: {params}")
+            
             rows = await connection.fetch(query, *params)
-            return [MatchHistoryRead(**dict(row)) for row in rows]
+            # Convert Decimal cost to float for JSON serialization (like dashboard endpoint)
+            matches = []
+            for row in rows:
+                match_dict = dict(row)
+                if match_dict.get("cost") is not None:
+                    try:
+                        match_dict["cost"] = float(match_dict["cost"])
+                    except Exception:
+                        pass
+                matches.append(MatchHistoryRead(**match_dict))
+            return matches
 
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to fetch match histories")
+    except Exception as e:
+        import traceback
+        error_detail = str(e)
+        error_type = type(e).__name__
+        traceback.print_exc()
+        print(f"ERROR in get_match_histories: {error_type}: {error_detail}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch match histories: {error_type}: {error_detail}")
+
+
+@app.get("/match-history/{user_id}", response_model=List[MatchHistoryRead])
+async def get_match_history_by_user(user_id: int, limit: int = 50, offset: int = 0):
+    """
+    Get match history for a specific user.
+    Only returns matches where the user participated (user is either player_id OR opponent_id).
+    This ensures only games the user actually joined are shown.
+    """
+    # Ensure user_id is always provided to filter by user
+    return await get_match_histories(user_id=user_id, limit=limit, offset=offset)
+
+
+@app.post("/archive-past-games")
+async def archive_past_games():
+    """
+    Archive past games to Match_Histories table and remove them from Game_instance.
+    This creates match history entries for each pair of participants in past games.
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            # Find all past games (where start_time + duration_minutes < NOW())
+            # Note: Table name might be case-sensitive, try both variations
+            past_games_query = """
+                SELECT game_id, host_id, sport_id, start_time, duration_minutes, location, cost
+                FROM public."Game_instance"
+                WHERE (start_time + INTERVAL '1 minute' * duration_minutes) < NOW()
+            """
+            past_games = await connection.fetch(past_games_query)
+            
+            print(f"DEBUG: Found {len(past_games)} past games to archive")
+            
+            # Also check total games for debugging
+            total_games = await connection.fetchval('SELECT COUNT(*) FROM public."Game_instance"')
+            print(f"DEBUG: Total games in database: {total_games}")
+            
+            # Check current time for debugging
+            current_time = await connection.fetchval('SELECT NOW()')
+            print(f"DEBUG: Current time: {current_time}")
+            
+            archived_count = 0
+            deleted_count = 0
+            
+            for game in past_games:
+                print(f"DEBUG: Processing game_id={game['game_id']}")
+                game_id = game['game_id']
+                
+                # Get all participants for this game
+                participants_query = """
+                    SELECT user_id
+                    FROM public."Game_participants"
+                    WHERE game_id = $1
+                    ORDER BY user_id
+                """
+                participants = await connection.fetch(participants_query, game_id)
+                
+                print(f"DEBUG: Game {game_id} has {len(participants)} participants")
+                
+                if len(participants) < 2:
+                    # Skip games with less than 2 participants
+                    print(f"DEBUG: Skipping game {game_id} - less than 2 participants")
+                    continue
+                
+                # Create match history entries for each pair of participants
+                participant_ids = [p['user_id'] for p in participants]
+                played_at = game['start_time']
+                duration_minutes = game['duration_minutes']
+                location = game.get('location')
+                cost = game.get('cost')
+                
+                # Create entries for each pair (avoid duplicates)
+                for i in range(len(participant_ids)):
+                    for j in range(i + 1, len(participant_ids)):
+                        player_id = participant_ids[i]
+                        opponent_id = participant_ids[j]
+                        
+                        # Check if this match history already exists
+                        check_query = """
+                            SELECT match_id FROM public."Match_Histories"
+                            WHERE player_id = $1 AND opponent_id = $2
+                            AND played_at = $3
+                        """
+                        existing = await connection.fetchrow(
+                            check_query, player_id, opponent_id, played_at
+                        )
+                        
+                        if not existing:
+                            # Insert match history (note: column is duration_minute, not duration_minutes)
+                            # Use default values since columns have NOT NULL constraints
+                            insert_query = """
+                                INSERT INTO public."Match_Histories"
+                                (player_id, opponent_id, score_player, score_opponent, 
+                                 result, duration_minute, location, cost, played_at)
+                                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                            """
+                            print(f"DEBUG: Inserting match history: player_id={player_id}, opponent_id={opponent_id}, location={location}, cost={cost}, played_at={played_at}")
+                            await connection.execute(
+                                insert_query,
+                                player_id,
+                                opponent_id,
+                                0,  # score_player (default to 0 since NOT NULL)
+                                0,  # score_opponent (default to 0 since NOT NULL)
+                                'draw',  # result (default to 'draw' since NOT NULL - can be updated later)
+                                duration_minutes,
+                                location,  # location from game
+                                cost,  # cost from game
+                                played_at
+                            )
+                            archived_count += 1
+                            print(f"DEBUG: Successfully inserted match history entry")
+                
+                # Delete associated records that reference this game first
+                # Delete reports that reference this game
+                delete_reports_query = """
+                    DELETE FROM public."Reports"
+                    WHERE report_game_id = $1
+                """
+                reports_deleted = await connection.execute(delete_reports_query, game_id)
+                print(f"DEBUG: Deleted reports for game {game_id}: {reports_deleted}")
+                
+                # Delete game participants (they should cascade, but being explicit)
+                delete_participants_query = """
+                    DELETE FROM public."Game_participants"
+                    WHERE game_id = $1
+                """
+                participants_deleted = await connection.execute(delete_participants_query, game_id)
+                print(f"DEBUG: Deleted participants for game {game_id}: {participants_deleted}")
+                
+                # Now delete the game instance after archiving
+                delete_query = """
+                    DELETE FROM public."Game_instance"
+                    WHERE game_id = $1
+                """
+                await connection.execute(delete_query, game_id)
+                deleted_count += 1
+                print(f"DEBUG: Deleted game instance {game_id}")
+            
+            print(f"DEBUG: Archive complete - {archived_count} match histories created, {deleted_count} games deleted")
+            
+            return {
+                "message": "Past games archived successfully",
+                "games_archived": archived_count,
+                "games_deleted": deleted_count,
+                "past_games_found": len(past_games)
+            }
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to archive past games: {str(e)}")
     
 
 # ===============================
