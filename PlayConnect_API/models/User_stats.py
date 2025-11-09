@@ -12,3 +12,6 @@ class UserStat(Base):
     games_hosted = Column(Integer, nullable=True)
     attendance_rate = Column(Numeric, nullable=True)
     sport_id = Column(BigInteger, primary_key=True)
+
+    xp = Column(Integer, nullable=False, default=0)
+    level = Column(Integer, nullable=False, default=0)
