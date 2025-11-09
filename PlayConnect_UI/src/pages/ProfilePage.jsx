@@ -5,8 +5,6 @@ import MatchHistoryPanel from "../components/MatchHistoryPanel";
 import { useAuth } from "../contexts/AuthContext";
 import API_BASE_URL from "../Api/config";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "http://127.0.0.1:8000";
-
 const xpRequiredForLevel = (level = 0) => Math.max(100, (level + 1) * 100);
 
 const aggregateUserStats = (entries = []) => {
