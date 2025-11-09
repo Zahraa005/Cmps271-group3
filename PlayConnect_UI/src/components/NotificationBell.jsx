@@ -43,49 +43,61 @@ export default function NotificationBell({ userId }) {
   }
 
   return (
-    <div style={{ position:"relative" }} ref={ref}>
-      <button
+    <div className="relative" ref={ref}>
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setOpen(v => !v)}
+        onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setOpen(v => !v)}
         aria-label="Notifications"
-        style={{ position:"relative", padding:8, borderRadius:9999, border:"none", background:"transparent" }}
+        className="relative flex h-10 w-10 items-center justify-center rounded-full bg-neutral-800 text-white transition hover:bg-neutral-700 cursor-pointer"
       >
-        {/* bell icon */}
-        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-          <path d="M12 2a6 6 0 00-6 6v3.586L4.293 13.293A1 1 0 005 15h14a1 1 0 00.707-1.707L18 11.586V8a6 6 0 00-6-6zm0 20a3 3 0 01-3-3h6a3 3 0 01-3 3z"/>
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 0 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5" />
+          <path d="M9 17a3 3 0 0 0 6 0" />
         </svg>
         {count > 0 && (
-          <span style={{
-            position:"absolute", top:-2, right:-2, minWidth:18, height:18,
-            background:"#ef4444", color:"#fff", fontSize:11, borderRadius:9999,
-            display:"inline-flex", alignItems:"center", justifyContent:"center", padding:"0 4px"
-          }}>
+          <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-violet-500 px-1 text-[10px] font-semibold text-white shadow">
             {count > 99 ? "99+" : count}
           </span>
         )}
-      </button>
+      </div>
 
       {open && (
-        <div style={{
-          position:"absolute", right:0, marginTop:8, width:384, maxHeight:"70vh", overflow:"auto",
-          background:"#fff", border:"1px solid #e5e7eb", borderRadius:16, boxShadow:"0 10px 30px rgba(0,0,0,0.12)", padding:8, zIndex:50
-        }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 8px" }}>
-            <div style={{ fontWeight:600 }}>Notifications</div>
+        <div className="absolute right-0 mt-3 w-96 max-w-[22rem] rounded-2xl border border-neutral-800 bg-neutral-900/95 p-3 shadow-2xl ring-1 ring-black/40 backdrop-blur">
+          <div className="flex items-center justify-between border-b border-neutral-800 pb-2">
+            <p className="text-sm font-semibold text-white">Notifications</p>
             {unreadIds.length > 0 && (
-              <button onClick={handleMarkAll} style={{ fontSize:13, textDecoration:"underline", background:"none", border:"none", cursor:"pointer" }}>
+              <button
+                onClick={handleMarkAll}
+                className="text-xs font-semibold text-violet-300 hover:text-violet-200"
+              >
                 Mark all as read
               </button>
             )}
           </div>
-          <ul style={{ margin:0, padding:0, listStyle:"none" }}>
+          <ul className="mt-2 max-h-[60vh] space-y-2 overflow-auto text-sm">
             {items.length === 0 && (
-              <li style={{ padding:16, fontSize:14, color:"#6b7280" }}>No notifications yet</li>
+              <li className="rounded-xl border border-neutral-800/70 bg-neutral-900/70 px-3 py-4 text-center text-neutral-400">
+                No notifications yet
+              </li>
             )}
             {items.map(n => (
-              <li key={n.notification_id} style={{ padding:12, background:n.is_read ? "#fff" : "#f9fafb", borderTop:"1px solid #f3f4f6" }}>
-                <div style={{ fontSize:13, fontWeight:600 }}>{titleFromType(n.type)}</div>
-                <div style={{ fontSize:14, color:"#374151", marginTop:4 }}>{n.message}</div>
-                <div style={{ fontSize:11, color:"#9ca3af", marginTop:4 }}>{new Date(n.created_at).toLocaleString()}</div>
+              <li
+                key={n.notification_id}
+                className={`rounded-xl border px-3 py-3 ${
+                  n.is_read
+                    ? "border-neutral-800/60 bg-neutral-900/60"
+                    : "border-violet-500/40 bg-violet-500/10"
+                }`}
+              >
+                <div className="text-xs font-semibold uppercase tracking-wide text-neutral-300">
+                  {titleFromType(n.type)}
+                </div>
+                <div className="text-sm text-white">{n.message}</div>
+                <div className="text-xs text-neutral-500">
+                  {new Date(n.created_at).toLocaleString()}
+                </div>
               </li>
             ))}
           </ul>
