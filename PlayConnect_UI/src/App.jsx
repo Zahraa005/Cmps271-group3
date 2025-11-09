@@ -21,7 +21,7 @@ import ToastPortal from "./components/ToastPortal";
 import NotificationsPoller from "./components/NotificationsPoller";
 import NotificationBell from "./components/NotificationBell";
 
-
+import ProfilePage from "./pages/ProfilePage";
 
 
 function Home() {
@@ -57,6 +57,8 @@ export default function App() {
 
           {/* dashboard */}
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+
            {/* Friends Page route */}
           <Route path="/friends" element={<FriendsPage />} />
           <Route path="/reset-password" element={<ResetPassword />} />
