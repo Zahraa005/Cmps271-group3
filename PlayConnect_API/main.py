@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from PlayConnect_API.schemas.Users import UserRead, UserCreate
 from PlayConnect_API.Database import connect_to_db, disconnect_db
 from PlayConnect_API import Database
-from PlayConnect_API.schemas.registration import RegisterRequest
+from PlayConnect_API.schemas.Registration import RegisterRequest
 
 from PlayConnect_API.schemas.Coaches import CoachRead, CoachCreate, CoachVerifyUpdate, CoachUpdate 
 from PlayConnect_API.schemas.User_stats import UserStatCreate, UserStatRead
@@ -24,23 +24,23 @@ from PlayConnect_API.schemas.report import ReportCreate, ReportRead, ReportUpdat
 from PlayConnect_API.schemas.Notifications import NotificationCreate, NotificationRead, NotificationType
 from PlayConnect_API.schemas.Friends import FriendCreate, FriendRead
 from PlayConnect_API.schemas.Match_Histories import MatchHistoryCreate, MatchHistoryRead
+from PlayConnect_API.schemas.user_badging import UserBadgeCreate, UserBadgeRead, UserBadgeUpdate
+from PlayConnect_API.schemas.activity_log import ActivityLogCreate, ActivityLogRead, ActivityLogUpdate
 
 from PlayConnect_API.security_utils import hash_password, verify_password
 
 from PlayConnect_API.services.mailer import render_template, send_email
 
 
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 import os, secrets, hashlib
 import jwt
-from datetime import datetime, timedelta
 from fastapi import Request
 import json
 from fastapi import Body
 from typing import List
 from fastapi import UploadFile, File, Form, HTTPException
 import os, shutil
-from datetime import datetime
 
 # =======================
 # LOGIN ATTEMPT TRACKING
@@ -88,6 +88,225 @@ def reset_login_attempts(email: str):
     FAILED_LOGINS.pop(email, None)
 
 
+# =======================
+# XP / BADGE DEFINITIONS
+# =======================
+XP_PER_LEVEL = int(os.getenv("XP_PER_LEVEL", "100"))
+XP_REWARDS = {
+    "play_game": int(os.getenv("XP_REWARD_PLAY", "25")),
+    "host_game": int(os.getenv("XP_REWARD_HOST", "40")),
+    "friend_accept": int(os.getenv("XP_REWARD_FRIEND", "15")),
+    "update_bio": int(os.getenv("XP_REWARD_BIO", "20")),
+}
+
+
+def _badge_first_match(ctx): return ctx["total_games_played"] >= 1
+def _badge_active_player(ctx): return ctx["total_games_played"] >= 10
+def _badge_strategist(ctx): return ctx["total_games_hosted"] >= 5
+def _badge_socializer(ctx): return ctx["friend_count"] >= 10
+def _badge_coach_verified(ctx): return ctx["is_verified_coach"]
+def _badge_weekly_streak(ctx): return ctx["login_streak"] >= 7
+def _badge_top_player(ctx): return ctx["is_top_player"]
+
+
+BADGE_DEFINITIONS = [
+    {"name": "First Match", "check": _badge_first_match},
+    {"name": "Active Player", "check": _badge_active_player},
+    {"name": "Strategist", "check": _badge_strategist},
+    {"name": "Socializer", "check": _badge_socializer},
+    {"name": "Coach Verified", "check": _badge_coach_verified},
+    {"name": "Weekly Streak", "check": _badge_weekly_streak},
+    {"name": "Top Player", "check": _badge_top_player},
+]
+
+
+async def log_activity(connection, user_id: int, action: str):
+    await connection.execute(
+        '''
+        INSERT INTO public."activity_logs" (user_id, action, created_at)
+        VALUES ($1, $2, NOW())
+        ''',
+        user_id, action
+    )
+
+
+async def upsert_user_stats_delta(
+    connection,
+    *,
+    user_id: int,
+    sport_id: int | None,
+    games_played_delta: int = 0,
+    games_hosted_delta: int = 0,
+    xp_delta: int = 0
+):
+    sport = sport_id if sport_id is not None else 0
+    if games_played_delta == 0 and games_hosted_delta == 0 and xp_delta == 0:
+        return None
+
+    row = await connection.fetchrow(
+        '''
+        INSERT INTO public."User_stats" (user_id, sport_id, games_played, games_hosted, attendance_rate, xp, level)
+        VALUES ($1, $2, $3, $4, NULL, $5, FLOOR(GREATEST($5, 0)::numeric / $6))
+        ON CONFLICT (user_id, sport_id)
+        DO UPDATE SET
+            games_played = GREATEST(public."User_stats".games_played + EXCLUDED.games_played, 0),
+            games_hosted = GREATEST(public."User_stats".games_hosted + EXCLUDED.games_hosted, 0),
+            xp = GREATEST(public."User_stats".xp + EXCLUDED.xp, 0),
+            level = FLOOR(GREATEST(public."User_stats".xp + EXCLUDED.xp, 0)::numeric / $6)
+        RETURNING user_id, sport_id, games_played, games_hosted, xp, level
+        ''',
+        user_id,
+        sport,
+        games_played_delta,
+        games_hosted_delta,
+        xp_delta,
+        XP_PER_LEVEL
+    )
+    return row
+
+
+async def get_user_progress_context(connection, user_id: int):
+    stat_totals = await connection.fetchrow(
+        '''
+        SELECT
+            COALESCE(SUM(games_played), 0) AS total_games_played,
+            COALESCE(SUM(games_hosted), 0) AS total_games_hosted,
+            COALESCE(SUM(xp), 0) AS total_xp,
+            COALESCE(MAX(level), 0) AS current_level
+        FROM public."User_stats"
+        WHERE user_id = $1
+        ''',
+        user_id
+    ) or {"total_games_played": 0, "total_games_hosted": 0, "total_xp": 0, "current_level": 0}
+
+    games_played_total = await connection.fetchval(
+        'SELECT COUNT(*) FROM public."Game_participants" WHERE user_id = $1',
+        user_id
+    ) or 0
+
+    games_hosted_total = await connection.fetchval(
+        'SELECT COUNT(*) FROM public."Game_instance" WHERE host_id = $1',
+        user_id
+    ) or 0
+
+    friend_count = await connection.fetchval(
+        '''
+        SELECT COUNT(*)
+        FROM public."Friends"
+        WHERE status = 'accepted' AND ($1 = user_id OR $1 = friend_id)
+        ''',
+        user_id
+    ) or 0
+
+    is_verified_coach = bool(await connection.fetchval(
+        '''
+        SELECT 1 FROM public."Coaches"
+        WHERE coach_id = $1 AND isverified = TRUE
+        LIMIT 1
+        ''',
+        user_id
+    ))
+
+    login_days = await connection.fetch(
+        '''
+        SELECT DISTINCT DATE(created_at) AS day
+        FROM public."activity_logs"
+        WHERE user_id = $1 AND action = 'login' AND created_at >= NOW() - INTERVAL '14 days'
+        ORDER BY day DESC
+        ''',
+        user_id
+    )
+    login_day_set = {row["day"] for row in login_days}
+    streak = 0
+    current_day = date.today()
+    while current_day in login_day_set:
+        streak += 1
+        current_day = current_day - timedelta(days=1)
+
+    xp_row = await connection.fetchrow(
+        '''
+        WITH totals AS (
+            SELECT user_id, COALESCE(SUM(xp), 0) AS total_xp
+            FROM public."User_stats"
+            GROUP BY user_id
+        ), ranked AS (
+            SELECT
+                user_id,
+                total_xp,
+                ROW_NUMBER() OVER (ORDER BY total_xp DESC) AS rk,
+                COUNT(*) OVER () AS total_users
+            FROM totals
+        )
+        SELECT total_xp, rk, total_users
+        FROM ranked
+        WHERE user_id = $1
+        ''',
+        user_id
+    )
+    total_users = xp_row["total_users"] if xp_row else 0
+    rank_position = xp_row["rk"] if xp_row else None
+    cutoff = max(1, int((total_users or 1) * 0.1)) if total_users else 0
+    is_top_player = bool(rank_position and rank_position <= cutoff and (xp_row["total_xp"] or 0) > 0)
+
+    return {
+        "total_games_played": games_played_total,
+        "total_games_hosted": games_hosted_total,
+        "total_xp": stat_totals["total_xp"],
+        "current_level": stat_totals["current_level"],
+        "friend_count": friend_count,
+        "is_verified_coach": is_verified_coach,
+        "login_streak": streak,
+        "is_top_player": is_top_player,
+    }
+
+
+async def ensure_user_badges(connection, user_id: int, context: dict | None = None):
+    if context is None:
+        context = await get_user_progress_context(connection, user_id)
+
+    existing = {
+        row["badge_name"]
+        for row in await connection.fetch(
+            'SELECT badge_name FROM public."user_badges" WHERE user_id = $1',
+            user_id
+        )
+    }
+    awarded = []
+    for badge in BADGE_DEFINITIONS:
+        name = badge["name"]
+        if name in existing:
+            continue
+        if badge["check"](context):
+            await connection.execute(
+                '''
+                INSERT INTO public."user_badges" (user_id, badge_name, earned_on, seen)
+                VALUES ($1, $2, NOW(), FALSE)
+                ''',
+                user_id,
+                name
+            )
+            awarded.append(name)
+    return awarded
+
+
+async def apply_progress(
+    connection,
+    *,
+    user_id: int,
+    sport_id: int | None = None,
+    games_played_delta: int = 0,
+    games_hosted_delta: int = 0,
+    xp_delta: int = 0
+):
+    await upsert_user_stats_delta(
+        connection,
+        user_id=user_id,
+        sport_id=sport_id,
+        games_played_delta=games_played_delta,
+        games_hosted_delta=games_hosted_delta,
+        xp_delta=xp_delta
+    )
+    await ensure_user_badges(connection, user_id)
 
 
 app = FastAPI()
@@ -97,16 +316,11 @@ load_dotenv(dotenv_path=".env")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "https://cmps271-group3.vercel.app"
-    ],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  
+    allow_headers=["*"],  
 )
-
 
 
 
@@ -234,7 +448,7 @@ async def join_game_participant(payload: GameParticipantJoin):
         async with Database.pool.acquire() as connection:
             # Ensure game exists
             game = await connection.fetchrow(
-                'SELECT game_id FROM public."Game_instance" WHERE game_id = $1 LIMIT 1',
+                'SELECT game_id, sport_id FROM public."Game_instance" WHERE game_id = $1 LIMIT 1',
                 payload.game_id,
             )
             if not game:
@@ -259,6 +473,14 @@ async def join_game_participant(payload: GameParticipantJoin):
                 payload.role,
             )
             inserted = result and result.startswith("INSERT")
+            if inserted:
+                await apply_progress(
+                    connection,
+                    user_id=payload.user_id,
+                    sport_id=game["sport_id"],
+                    games_played_delta=1,
+                    xp_delta=XP_REWARDS["play_game"]
+                )
             return {
                 "message": "Joined game" if inserted else "Already participating",
                 "game_id": payload.game_id,
@@ -700,11 +922,12 @@ async def update_profile(user_id: int, profile: ProfileCreate):
         async with Database.pool.acquire() as connection:
             # Check if user exists
             existing = await connection.fetchrow(
-                'SELECT user_id FROM public."Users" WHERE user_id = $1 LIMIT 1',
+                'SELECT user_id, bio FROM public."Users" WHERE user_id = $1 LIMIT 1',
                 user_id
             )
             if not existing:
                 raise HTTPException(status_code=404, detail="User not found")
+            previous_bio = (existing["bio"] or "").strip() if "bio" in existing else ""
 
             # Update user profile fields
             row = await connection.fetchrow(
@@ -729,6 +952,14 @@ async def update_profile(user_id: int, profile: ProfileCreate):
                 profile.role,
                 user_id,
             )
+            updated_bio = (row["bio"] or "").strip() if "bio" in row else ""
+            if not previous_bio and updated_bio:
+                await apply_progress(
+                    connection,
+                    user_id=user_id,
+                    sport_id=0,
+                    xp_delta=XP_REWARDS["update_bio"]
+                )
             return ProfileRead(**dict(row))
     except HTTPException:
         raise
@@ -1011,7 +1242,12 @@ async def request_coach_verification(
 async def get_user_stats():
     try:
         async with Database.pool.acquire() as connection:
-            rows = await connection.fetch('SELECT * FROM public."User_stats"')
+            rows = await connection.fetch(
+                '''
+                SELECT user_id, sport_id, games_played, games_hosted, attendance_rate, xp, level
+                FROM public."User_stats"
+                '''
+            )
             stats = [UserStatRead(**dict(row)) for row in rows]
             return stats
     except Exception as e:
@@ -1023,17 +1259,21 @@ async def create_user_stat(stat: UserStatCreate):
     try:
         async with Database.pool.acquire() as connection:
             query = '''
-                INSERT INTO public."User_stats" (user_id, games_played, games_hosted, attendance_rate, sport_id)
-                VALUES ($1, $2, $3, $4, $5)
-                RETURNING user_id, games_played, games_hosted, attendance_rate, sport_id
+                INSERT INTO public."User_stats" (
+                    user_id, sport_id, games_played, games_hosted, attendance_rate, xp, level
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                RETURNING user_id, sport_id, games_played, games_hosted, attendance_rate, xp, level
             '''
             row = await connection.fetchrow(
                 query,
                 stat.user_id,
+                stat.sport_id,
                 stat.games_played,
                 stat.games_hosted,
                 stat.attendance_rate,
-                stat.sport_id
+                stat.xp,
+                stat.level
             )
             return UserStatRead(**dict(row))
     except Exception as e:
@@ -1073,6 +1313,13 @@ async def create_game_instance(game: GameInstanceCreate):
                 game.cost,
                 game.status,
                 game.notes
+            )
+            await apply_progress(
+                connection,
+                user_id=game.host_id,
+                sport_id=game.sport_id,
+                games_hosted_delta=1,
+                xp_delta=XP_REWARDS["host_game"]
             )
             return GameInstanceResponse(**dict(row))
     except Exception as e:
@@ -1428,6 +1675,9 @@ async def login(login_request: LoginRequest, request: Request):
                     detail="Please verify your email address. A verification email has been sent to your inbox."
                 )
 
+            await log_activity(connection, user["user_id"], "login")
+            await ensure_user_badges(connection, user["user_id"])
+
             # Generate JWT token
             secret_key = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
             token_expiry = datetime.utcnow() + timedelta(hours=4)  # 4 hour expiry
@@ -1611,20 +1861,27 @@ async def remove_user_from_waitlist(user_id: int, game_id: Union[int, None] = No
 async def delete_game_instance(game_id: int):
     try:
         async with Database.pool.acquire() as connection:
-            # First check if the game exists
             existing = await connection.fetchrow(
-                'SELECT game_id FROM public."Game_instance" WHERE game_id = $1',
+                'SELECT game_id, host_id, sport_id FROM public."Game_instance" WHERE game_id = $1',
                 game_id
             )
             
             if not existing:
                 raise HTTPException(status_code=404, detail="Game instance not found")
             
-            # Delete the game instance
             await connection.execute(
                 'DELETE FROM public."Game_instance" WHERE game_id = $1',
                 game_id
             )
+
+            if existing["host_id"]:
+                await apply_progress(
+                    connection,
+                    user_id=existing["host_id"],
+                    sport_id=existing["sport_id"],
+                    games_hosted_delta=-1,
+                    xp_delta=-XP_REWARDS["host_game"]
+                )
             
             return {
                 "message": "Game instance deleted successfully",
@@ -2483,6 +2740,8 @@ async def update_friend_status(body: FriendStatusBody):
                 raise HTTPException(status_code=404, detail="Friend request not found")
 
             if body.status == "rejected":
+                if pending["status"] != "pending":
+                    raise HTTPException(status_code=409, detail="Cannot reject a non-pending request")
                 await connection.execute(
                     '''
                     DELETE FROM public."Friends"
@@ -2491,6 +2750,21 @@ async def update_friend_status(body: FriendStatusBody):
                     body.user_id, body.friend_id
                 )
                 return {"message": "Friend request rejected and removed."}
+
+            if pending["status"] == "accepted":
+                other = await connection.fetchrow(
+                    '''
+                    SELECT u.user_id, u.email, u.first_name, u.last_name, u.avatar_url, u.favorite_sport
+                    FROM public."Users" AS u
+                    WHERE u.user_id = $1
+                    ''',
+                    body.user_id
+                )
+                return {
+                    "status": pending["status"],
+                    "created_at": pending["created_at"],
+                    "friend": dict(other) if other else None
+                }
 
             # Accept: update same row
             updated = await connection.fetchrow(
@@ -2501,6 +2775,19 @@ async def update_friend_status(body: FriendStatusBody):
                 RETURNING user_id, friend_id, status, created_at
                 ''',
                 body.user_id, body.friend_id
+            )
+
+            await apply_progress(
+                connection,
+                user_id=body.user_id,
+                sport_id=0,
+                xp_delta=XP_REWARDS["friend_accept"]
+            )
+            await apply_progress(
+                connection,
+                user_id=body.friend_id,
+                sport_id=0,
+                xp_delta=XP_REWARDS["friend_accept"]
             )
 
             # For the receiver (friend_id), the OTHER user is the requester (user_id)
@@ -2738,5 +3025,258 @@ async def requests_sent(user_id: int):
                 for r in rows
             ]
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ====================
+# USER BADGE ENDPOINTS
+# ====================
+@app.get("/user_badges", response_model=List[UserBadgeRead])
+async def list_user_badges(
+    user_id: Optional[int] = Query(None),
+    only_unseen: bool = Query(False)
+):
+    """
+    Return user badges, optionally filtered by user and unseen status.
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            if user_id is not None:
+                await ensure_user_badges(connection, user_id)
+
+            sql = '''
+                SELECT id, user_id, badge_name, earned_on, seen
+                FROM public."user_badges"
+            '''
+            clauses = []
+            params: List = []
+            if user_id is not None:
+                params.append(user_id)
+                clauses.append(f"user_id = ${len(params)}")
+            if only_unseen:
+                params.append(False)
+                clauses.append(f"seen = ${len(params)}")
+            if clauses:
+                sql += " WHERE " + " AND ".join(clauses)
+            sql += " ORDER BY earned_on DESC, id DESC"
+
+            rows = await connection.fetch(sql, *params)
+            return [UserBadgeRead(**dict(row)) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/user_badges/{badge_id}", response_model=UserBadgeRead)
+async def get_user_badge(badge_id: int):
+    try:
+        async with Database.pool.acquire() as connection:
+            row = await connection.fetchrow(
+                '''
+                SELECT id, user_id, badge_name, earned_on, seen
+                FROM public."user_badges"
+                WHERE id = $1
+                ''',
+                badge_id
+            )
+            if not row:
+                raise HTTPException(status_code=404, detail="Badge not found")
+            return UserBadgeRead(**dict(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/user_badges", response_model=UserBadgeRead, status_code=201)
+async def create_user_badge(badge: UserBadgeCreate):
+    try:
+        async with Database.pool.acquire() as connection:
+            row = await connection.fetchrow(
+                '''
+                INSERT INTO public."user_badges" (user_id, badge_name, earned_on, seen)
+                VALUES ($1, $2, $3, $4)
+                RETURNING id, user_id, badge_name, earned_on, seen
+                ''',
+                badge.user_id,
+                badge.badge_name,
+                badge.earned_on or datetime.utcnow(),
+                badge.seen
+            )
+            return UserBadgeRead(**dict(row))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/user_badges/{badge_id}", response_model=UserBadgeRead)
+async def update_user_badge(badge_id: int, updates: UserBadgeUpdate):
+    try:
+        data = updates.dict(exclude_unset=True)
+        if not data:
+            raise HTTPException(status_code=400, detail="No fields to update")
+
+        set_clauses = []
+        params: List = []
+        for field, value in data.items():
+            params.append(value)
+            set_clauses.append(f'{field} = ${len(params)}')
+
+        params.append(badge_id)
+        query = f'''
+            UPDATE public."user_badges"
+            SET {", ".join(set_clauses)}
+            WHERE id = ${len(params)}
+            RETURNING id, user_id, badge_name, earned_on, seen
+        '''
+
+        async with Database.pool.acquire() as connection:
+            row = await connection.fetchrow(query, *params)
+            if not row:
+                raise HTTPException(status_code=404, detail="Badge not found")
+            return UserBadgeRead(**dict(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/user_badges/{badge_id}", status_code=200)
+async def delete_user_badge(badge_id: int):
+    try:
+        async with Database.pool.acquire() as connection:
+            result = await connection.execute(
+                'DELETE FROM public."user_badges" WHERE id = $1',
+                badge_id
+            )
+            deleted = int(result.split()[-1]) if result else 0
+            if deleted == 0:
+                raise HTTPException(status_code=404, detail="Badge not found")
+            return {"deleted": deleted}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========================
+# ACTIVITY LOG ENDPOINTS
+# ========================
+@app.get("/activity_logs", response_model=List[ActivityLogRead])
+async def list_activity_logs(
+    user_id: Optional[int] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0)
+):
+    """
+    Fetch activity logs ordered by most recent.
+    """
+    try:
+        async with Database.pool.acquire() as connection:
+            sql = '''
+                SELECT id, user_id, action, created_at
+                FROM public."activity_logs"
+            '''
+            clauses = []
+            params: List = []
+            if user_id is not None:
+                params.append(user_id)
+                clauses.append(f"user_id = ${len(params)}")
+            if clauses:
+                sql += " WHERE " + " AND ".join(clauses)
+            sql += " ORDER BY created_at DESC, id DESC LIMIT $%d OFFSET $%d" % (len(params) + 1, len(params) + 2)
+
+            params.extend([limit, offset])
+            rows = await connection.fetch(sql, *params)
+            return [ActivityLogRead(**dict(row)) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/activity_logs/{log_id}", response_model=ActivityLogRead)
+async def get_activity_log(log_id: int):
+    try:
+        async with Database.pool.acquire() as connection:
+            row = await connection.fetchrow(
+                '''
+                SELECT id, user_id, action, created_at
+                FROM public."activity_logs"
+                WHERE id = $1
+                ''',
+                log_id
+            )
+            if not row:
+                raise HTTPException(status_code=404, detail="Activity log not found")
+            return ActivityLogRead(**dict(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/activity_logs", response_model=ActivityLogRead, status_code=201)
+async def create_activity_log(entry: ActivityLogCreate):
+    try:
+        async with Database.pool.acquire() as connection:
+            row = await connection.fetchrow(
+                '''
+                INSERT INTO public."activity_logs" (user_id, action, created_at)
+                VALUES ($1, $2, $3)
+                RETURNING id, user_id, action, created_at
+                ''',
+                entry.user_id,
+                entry.action,
+                entry.created_at or datetime.utcnow()
+            )
+            return ActivityLogRead(**dict(row))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/activity_logs/{log_id}", response_model=ActivityLogRead)
+async def update_activity_log(log_id: int, updates: ActivityLogUpdate):
+    try:
+        data = updates.dict(exclude_unset=True)
+        if not data:
+            raise HTTPException(status_code=400, detail="No fields to update")
+
+        set_clauses = []
+        params: List = []
+        for field, value in data.items():
+            params.append(value)
+            set_clauses.append(f'{field} = ${len(params)}')
+
+        params.append(log_id)
+        query = f'''
+            UPDATE public."activity_logs"
+            SET {", ".join(set_clauses)}
+            WHERE id = ${len(params)}
+            RETURNING id, user_id, action, created_at
+        '''
+
+        async with Database.pool.acquire() as connection:
+            row = await connection.fetchrow(query, *params)
+            if not row:
+                raise HTTPException(status_code=404, detail="Activity log not found")
+            return ActivityLogRead(**dict(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/activity_logs/{log_id}", status_code=200)
+async def delete_activity_log(log_id: int):
+    try:
+        async with Database.pool.acquire() as connection:
+            result = await connection.execute(
+                'DELETE FROM public."activity_logs" WHERE id = $1',
+                log_id
+            )
+            deleted = int(result.split()[-1]) if result else 0
+            if deleted == 0:
+                raise HTTPException(status_code=404, detail="Activity log not found")
+            return {"deleted": deleted}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
