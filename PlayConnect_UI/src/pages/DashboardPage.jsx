@@ -346,9 +346,10 @@ useEffect(() => {
     if (!window.confirm("Are you sure you want to delete this game?")) return;
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/game-instances/${gameId}`, {
+      const response = await fetch(`${API_BASE_URL}/game-instances/${gameId}`, {
         method: "DELETE",
-      });
+    });
+
 
       if (response.ok) {
         // Remove game from state so it disappears instantly
@@ -369,7 +370,7 @@ useEffect(() => {
     if (!editingGame) return;
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/game-instances/${editingGame.game_id}`, {
+      const response = await fetch(`${API_BASE_URL}/game-instances/${editingGame.game_id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editingGame),
@@ -465,7 +466,7 @@ useEffect(() => {
 
       console.log('Sending data to API:', apiData); // Debug log
 
-      const response = await fetch('http://127.0.0.1:8000/game-instances', {
+      const response = await fetch(`${API_BASE_URL}/game-instances`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
