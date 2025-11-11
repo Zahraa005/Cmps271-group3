@@ -316,10 +316,15 @@ load_dotenv(dotenv_path=".env")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://cmps271-group3.vercel.app",
+        "https://cmps271-group3-cbl2.vercel.app"  # ✅ your actual deployed frontend
+    ],
     allow_credentials=True,
-    allow_methods=["*"],  
-    allow_headers=["*"],  
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
