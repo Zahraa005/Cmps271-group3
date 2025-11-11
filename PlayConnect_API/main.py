@@ -320,7 +320,7 @@ app.add_middleware(
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "https://cmps271-group3.vercel.app",
-        "https://cmps271-group3-cbl2.vercel.app"  # ✅ your actual deployed frontend
+        "https://cmps271-group3-cbl2.vercel.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
