@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from PlayConnect_API.schemas.Users import UserRead, UserCreate
 from PlayConnect_API.Database import connect_to_db, disconnect_db
 from PlayConnect_API import Database
-from PlayConnect_API.schemas.Registration import RegisterRequest
+from PlayConnect_API.schemas.registration import RegisterRequest
 
 from PlayConnect_API.schemas.Coaches import CoachRead, CoachCreate, CoachVerifyUpdate, CoachUpdate 
 from PlayConnect_API.schemas.User_stats import UserStatCreate, UserStatRead
