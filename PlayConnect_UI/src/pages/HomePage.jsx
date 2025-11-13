@@ -50,12 +50,21 @@ export default function HomePage() {
           <span>🏀🎾</span>
         </div>
         <div className="hidden md:flex gap-6 text-lg">
-          <a href="/" className="hover:text-indigo-400 transition-colors duration-300">Home</a>
+          <Link to="/" className="hover:text-indigo-400 transition-colors duration-300">
+            Home
+          </Link>
+
           <Link to="/coaches" className="hover:text-indigo-400 cursor-pointer transition-colors duration-300">
             Coaches
           </Link>
 
-          <a href="/games" onClick={goToGames} className="hover:text-indigo-400 transition-colors duration-300">Games</a>
+          <button
+            onClick={goToGames}
+            className="hover:text-indigo-400 transition-colors duration-300"
+          >
+            Games
+          </button>
+
           <Link
             to="/friends"
             className="hover:text-indigo-400 transition-colors duration-300"
@@ -64,12 +73,31 @@ export default function HomePage() {
           </Link>
         </div>
         <div className="flex gap-4">
-          <a href="/login" className="px-5 py-2 rounded-lg border-2 border-white text-white hover:bg-white hover:text-neutral-900 transition-all duration-300">
-            Login
-          </a>
-          <a href="/signup" className="px-5 py-2 rounded-lg border-2 border-white text-white hover:bg-white hover:text-neutral-900 transition-all duration-300">
-            Sign Up
-          </a>
+          {isAuthenticated ? (
+            <>
+              <button
+                onClick={() => navigate("/dashboard")}
+                className="px-5 py-2 rounded-lg border-2 border-white text-white hover:bg-white hover:text-neutral-900 transition-all duration-300"
+              >
+                Dashboard
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="px-5 py-2 rounded-lg border-2 border-white text-white hover:bg-white hover:text-neutral-900 transition-all duration-300"
+              >
+                Login
+              </Link>
+              <Link
+                to="/signup"
+                className="px-5 py-2 rounded-lg border-2 border-white text-white hover:bg-white hover:text-neutral-900 transition-all duration-300"
+              >
+                Sign Up
+              </Link>
+            </>
+          )}
         </div>
       </nav>
 
