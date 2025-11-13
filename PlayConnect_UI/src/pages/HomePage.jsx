@@ -44,6 +44,8 @@ export default function HomePage() {
   return (
     <div className="bg-gradient-to-br from-rose-50 via-amber-50 to-emerald-50 min-h-screen flex flex-col">
       {/* Navbar */}
+
+      
       <nav className="bg-neutral-900 text-white px-6 py-4 flex flex-col items-center gap-3 sticky top-0 z-50 shadow-lg backdrop-blur-md">
         <div className="h-0" />
 
