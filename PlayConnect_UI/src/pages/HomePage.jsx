@@ -44,12 +44,10 @@ export default function HomePage() {
   return (
     <div className="bg-gradient-to-br from-rose-50 via-amber-50 to-emerald-50 min-h-screen flex flex-col">
       {/* Navbar */}
-      <nav className="bg-neutral-900 text-white px-6 py-4 flex justify-between items-center sticky top-0 z-50 shadow-lg backdrop-blur-md">
-        <div className="flex items-center gap-2 text-2xl font-bold">
-          <span>PlayConnect</span>
-          <span>🏀🎾</span>
-        </div>
-        <div className="hidden md:flex gap-6 text-lg">
+      <nav className="bg-neutral-900 text-white px-6 py-4 flex flex-col items-center gap-3 sticky top-0 z-50 shadow-lg backdrop-blur-md">
+        <div className="h-0" />
+
+        <div className="flex gap-6 text-lg">
           <Link to="/" className="hover:text-indigo-400 transition-colors duration-300">
             Home
           </Link>
@@ -58,12 +56,12 @@ export default function HomePage() {
             Coaches
           </Link>
 
-          <button
-            onClick={goToGames}
+          <Link
+            to={isAuthenticated ? "/dashboard" : "/login"}
             className="hover:text-indigo-400 transition-colors duration-300"
           >
             Games
-          </button>
+          </Link>
 
           <Link
             to="/friends"
@@ -71,33 +69,6 @@ export default function HomePage() {
           >
             Community
           </Link>
-        </div>
-        <div className="flex gap-4">
-          {isAuthenticated ? (
-            <>
-              <button
-                onClick={() => navigate("/dashboard")}
-                className="px-5 py-2 rounded-lg border-2 border-white text-white hover:bg-white hover:text-neutral-900 transition-all duration-300"
-              >
-                Dashboard
-              </button>
-            </>
-          ) : (
-            <>
-              <Link
-                to="/login"
-                className="px-5 py-2 rounded-lg border-2 border-white text-white hover:bg-white hover:text-neutral-900 transition-all duration-300"
-              >
-                Login
-              </Link>
-              <Link
-                to="/signup"
-                className="px-5 py-2 rounded-lg border-2 border-white text-white hover:bg-white hover:text-neutral-900 transition-all duration-300"
-              >
-                Sign Up
-              </Link>
-            </>
-          )}
         </div>
       </nav>
 
