@@ -11,7 +11,7 @@ export default function HomePage() {
   const videoRef = useRef(null);
   const [revealBall, setRevealBall] = useState(false);
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, logout } = useAuth();
 
   const goToGames = (e) => {
     if (e && e.preventDefault) e.preventDefault();
@@ -20,6 +20,11 @@ export default function HomePage() {
     } else {
       navigate("/login");
     }
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate("/");
   };
 
   useEffect(() => {
@@ -44,17 +49,38 @@ export default function HomePage() {
   return (
     <div className="bg-gradient-to-br from-rose-50 via-amber-50 to-emerald-50 min-h-screen flex flex-col">
       {/* Navbar */}
+      <nav className="bg-neutral-900 text-white px-6 py-4 sticky top-0 z-50 shadow-lg backdrop-blur-md flex items-center justify-between">
+        {/* Logo */}
+        <div className="flex items-center gap-2 font-bold text-2xl">
+          <span className="text-white">PlayConnect</span>
+          <motion.span
+            initial={{ y: -5 }}
+            animate={{ y: [ -5, 0, -5 ] }}
+            transition={{ repeat: Infinity, duration: 1.2 }}
+            className="text-yellow-400 inline-block"
+          >
+            🏀
+          </motion.span>
+          <motion.span
+            initial={{ y: -5 }}
+            animate={{ y: [ -5, 0, -5 ] }}
+            transition={{ repeat: Infinity, duration: 1.2, delay: 0.2 }}
+            className="inline-block"
+          >
+            🎾
+          </motion.span>
+        </div>
 
-      
-      <nav className="bg-neutral-900 text-white px-6 py-4 flex flex-col items-center gap-3 sticky top-0 z-50 shadow-lg backdrop-blur-md">
-        <div className="h-0" />
-
-        <div className="flex gap-6 text-lg">
+        {/* Centered nav links */}
+        <div className="absolute left-1/2 -translate-x-1/2 flex gap-6 text-lg">
           <Link to="/" className="hover:text-indigo-400 transition-colors duration-300">
             Home
           </Link>
 
-          <Link to="/coaches" className="hover:text-indigo-400 cursor-pointer transition-colors duration-300">
+          <Link
+            to="/coaches"
+            className="hover:text-indigo-400 cursor-pointer transition-colors duration-300"
+          >
             Coaches
           </Link>
 
@@ -71,6 +97,33 @@ export default function HomePage() {
           >
             Community
           </Link>
+        </div>
+
+        {/* Auth buttons – right side */}
+        <div className="flex gap-4 ml-auto">
+          {isAuthenticated ? (
+            <button
+              onClick={handleLogout}
+              className="px-5 py-2 rounded-lg border-2 border-white text-white hover:bg-white hover:text-neutral-900 transition-all duration-300"
+            >
+              Logout
+            </button>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="px-5 py-2 rounded-lg border-2 border-white text-white hover:bg-white hover:text-neutral-900 transition-all duration-300"
+              >
+                Login
+              </Link>
+              <Link
+                to="/signup"
+                className="px-5 py-2 rounded-lg border-2 border-white text-white hover:bg-white hover:text-neutral-900 transition-all duration-300"
+              >
+                Sign Up
+              </Link>
+            </>
+          )}
         </div>
       </nav>
 
