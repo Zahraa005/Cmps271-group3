@@ -51,21 +51,25 @@ export default function HomePage() {
       {/* Navbar */}
       <nav className="bg-neutral-900 text-white px-6 py-4 sticky top-0 z-50 shadow-lg backdrop-blur-md flex items-center justify-between">
         {/* Logo */}
-        <div className="flex items-center gap-2 font-bold text-2xl">
-          <span className="text-white">PlayConnect</span>
+        <div className="flex items-center justify-start gap-3 scale-75 md:scale-90">
+          <h1 className="text-[4px] font-extrabold italic bg-gradient-to-r from-purple-400 via-pink-400 to-indigo-400 bg-clip-text text-transparent select-none leading-none">
+            PlayConnect
+          </h1>
+
           <motion.span
-            initial={{ y: -5 }}
-            animate={{ y: [ -5, 0, -5 ] }}
+            initial={{ y: -4 }}
+            animate={{ y: [ -4, 0, -4 ] }}
             transition={{ repeat: Infinity, duration: 1.2 }}
-            className="text-yellow-400 inline-block"
+            className="inline-block text-2xl"
           >
             🏀
           </motion.span>
+
           <motion.span
-            initial={{ y: -5 }}
-            animate={{ y: [ -5, 0, -5 ] }}
-            transition={{ repeat: Infinity, duration: 1.2, delay: 0.2 }}
-            className="inline-block"
+            initial={{ y: -4 }}
+            animate={{ y: [ -4, 0, -4 ] }}
+            transition={{ repeat: Infinity, duration: 1.2, delay: 0.15 }}
+            className="inline-block text-2xl"
           >
             🎾
           </motion.span>
@@ -139,7 +143,7 @@ export default function HomePage() {
         />
         
         <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
-          <h1 className="text-7xl font-extrabold drop-shadow-2xl mb-4">
+          <h1 className="text-2xl font-extrabold drop-shadow-2xl mb-3">
             PlayC
             {revealBall ? (
               <span className="inline-block text-yellow-300 animate-pulse">🏀</span>
