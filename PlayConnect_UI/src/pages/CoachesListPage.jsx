@@ -11,6 +11,7 @@ export default function CoachesListPage() {
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isUserCoach, setIsUserCoach] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user_id, setUser_id] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState(null);
@@ -47,24 +48,27 @@ export default function CoachesListPage() {
     fetchCoaches();
   }, []);
 
-  // Check if user is a coach
+  // Check auth + if user is a coach
   useEffect(() => {
-    const checkUserCoach = () => {
-      const userId = Number(localStorage.getItem("user_id"));
-      const userData = localStorage.getItem("userData");
-      
-      if (userId && userData) {
-        setUser_id(userId);
-        try {
-          const parsedUser = JSON.parse(userData);
-          // Show button if user has "coach" role
-          setIsUserCoach(parsedUser.role === "coach");
-        } catch (e) {
-          console.error("Error parsing userData:", e);
-        }
-      }
-    };
-    checkUserCoach();
+    const userId = Number(localStorage.getItem("user_id"));
+    const userData = localStorage.getItem("userData");
+
+    // If not logged in, redirect to sign in
+    if (!userId || !userData) {
+      window.location.replace("/login"); // redirect to actual login route
+      return;
+    }
+
+    setUser_id(userId);
+    setIsLoggedIn(true);
+
+    try {
+      const parsedUser = JSON.parse(userData);
+      // Show button if user has "coach" role
+      setIsUserCoach(parsedUser.role === "coach");
+    } catch (e) {
+      console.error("Error parsing userData:", e);
+    }
   }, []);
 
   const getInitials = (firstName, lastName) => {
@@ -181,12 +185,14 @@ export default function CoachesListPage() {
             </button>
           )}
 
-          <button
-            onClick={handleLogout}
-            className="bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded-lg font-semibold text-sm transition text-white"
-          >
-            Logout
-          </button>
+          {isLoggedIn && (
+            <button
+              onClick={handleLogout}
+              className="bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded-lg font-semibold text-sm transition text-white"
+            >
+              Logout
+            </button>
+          )}
         </div>
       </div>
 

@@ -4,21 +4,6 @@ import ViewProfile from "../components/ViewProfile";
 import API_BASE_URL from '../Api/config';
 
 
-/**
- * HOW WE GET THE LOGGED-IN USER:
- * - Try localStorage "user_id" (set this when you log in)
- * - Fallback to query param ?user_id=... (useful for quick testing)
- * - If still missing, show an error banner
- */
-function useCurrentUserId() {
-  const fromStorage = Number(localStorage.getItem("user_id"));
-  const fromQuery = Number(new URLSearchParams(window.location.search).get("user_id"));
-  return Number.isFinite(fromStorage) && fromStorage > 0
-    ? fromStorage
-    : Number.isFinite(fromQuery) && fromQuery > 0
-      ? fromQuery
-      : null;
-}
 
 
 export default function FriendsPage() {
@@ -43,11 +28,17 @@ export default function FriendsPage() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
 
-  const currentUserId = useCurrentUserId();
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const [showViewProfile, setShowViewProfile] = useState(false);
   const [viewUserId, setViewUserId] = useState(null);
   const [viewInitialUser, setViewInitialUser] = useState(null);
+  const handleLogout = () => {
+    localStorage.removeItem("user_id");
+    localStorage.removeItem("userData");
+    window.location.href = "/login";
+  };
 
 
 
@@ -214,13 +205,20 @@ export default function FriendsPage() {
   };
 
   // ---------- Effects ----------
+  // Check auth and redirect to login if not logged in
   useEffect(() => {
-    if (!currentUserId) {
-      setError("Missing logged-in user_id. Add it to localStorage or as ?user_id=123");
+    const userId = Number(localStorage.getItem("user_id"));
+    const userData = localStorage.getItem("userData");
+
+    if (!userId || !userData) {
+      window.location.replace("/login");
       return;
     }
+
+    setCurrentUserId(userId);
+    setIsLoggedIn(true);
     setError("");
-  }, [currentUserId]);
+  }, []);
 
   // Preload /users once for the profile modal
   useEffect(() => {
@@ -413,13 +411,6 @@ export default function FriendsPage() {
       </div>
     );
 
-  if (!currentUserId)
-    return (
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-yellow-400">
-        Missing user_id. Save it in localStorage or pass ?user_id=ME
-      </div>
-    );
-
   // ---------- UI ----------
   return (
     <div className="min-h-screen bg-neutral-950 relative overflow-hidden text-neutral-100">
@@ -458,12 +449,14 @@ export default function FriendsPage() {
           <a href="/dashboard" className="text-white hover:text-neutral-100 text-sm transition">
             Dashboard
           </a>
-          <button
-            onClick={() => (window.location.href = "/")}
-            className="bg-indigo-500 hover:bg-indigo-600 px-4 py-2 rounded-lg font-semibold text-sm transition text-white"
-          >
-            Logout
-          </button>
+          {isLoggedIn && (
+            <button
+              onClick={handleLogout}
+              className="bg-indigo-500 hover:bg-indigo-600 px-4 py-2 rounded-lg font-semibold text-sm transition text-white"
+            >
+              Logout
+            </button>
+          )}
         </div>
       </div>
 
