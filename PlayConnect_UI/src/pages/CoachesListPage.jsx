@@ -170,14 +170,16 @@ export default function CoachesListPage() {
             </button>
           )}
 
-          {/* ✅ Request Verification Button */}
-          <button
-            onClick={() => setShowVerifyModal(true)}
-            className="bg-gradient-to-r from-indigo-500/90 to-fuchsia-500/90 hover:from-indigo-600 hover:to-fuchsia-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-2 shadow-lg shadow-fuchsia-500/20 border border-fuchsia-500/20"
-          >
-            <CheckCircle size={16} />
-            Request Verification
-          </button>
+          {/* ✅ Request Verification Button - only show if user is a coach */}
+          {isUserCoach && (
+            <button
+              onClick={() => setShowVerifyModal(true)}
+              className="bg-gradient-to-r from-indigo-500/90 to-fuchsia-500/90 hover:from-indigo-600 hover:to-fuchsia-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-2 shadow-lg shadow-fuchsia-500/20 border border-fuchsia-500/20"
+            >
+              <CheckCircle size={16} />
+              Request Verification
+            </button>
+          )}
 
           <button
             onClick={handleLogout}
