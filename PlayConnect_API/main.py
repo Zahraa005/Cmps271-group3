@@ -30,6 +30,9 @@ from PlayConnect_API.schemas.activity_log import ActivityLogCreate, ActivityLogR
 from PlayConnect_API.security_utils import hash_password, verify_password
 
 from PlayConnect_API.services.mailer import render_template, send_email
+import asyncio
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from PlayConnect_API.recurrence_worker import process_due_schedules
 
 
 from datetime import date, datetime, timezone, timedelta
@@ -310,6 +313,9 @@ async def apply_progress(
 
 
 app = FastAPI()
+
+# APScheduler instance used to run the recurrence worker in-process
+scheduler = AsyncIOScheduler()
 
 load_dotenv(dotenv_path=".env")
 
@@ -745,10 +751,31 @@ async def resend_verification_email(request: EmailVerificationRequest):
 async def startup():
     await connect_to_db()
     await ensure_password_reset_table()
+    # start the in-process recurrence worker (runs every minute)
+    try:
+        scheduler.add_job(lambda: asyncio.create_task(process_due_schedules()), 'interval', minutes=1, id='recurrence_worker')
+        scheduler.start()
+    except Exception as e:
+        print("Failed to start recurrence scheduler:", e)
 
 @app.on_event("shutdown")
 async def shutdown():
+    # stop scheduler first
+    try:
+        scheduler.shutdown(wait=False)
+    except Exception:
+        pass
     await disconnect_db()
+
+
+@app.post("/recurring/run-now")
+async def run_recurring_now():
+    """Manual trigger for the recurrence worker (useful for testing)."""
+    try:
+        await process_due_schedules()
+        return {"message": "recurrence worker run completed"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/")
 def read_root():
