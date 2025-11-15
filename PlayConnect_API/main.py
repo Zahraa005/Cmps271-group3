@@ -355,7 +355,7 @@ async def send_verification_email(connection, user_id: int, email: str, first_na
     """Send email verification to user"""
     try:
         # Create verification URL with email parameter
-        app_url = os.getenv("APP_URL") or os.getenv("FRONTEND_URL", "http://localhost:5173")
+        app_url = os.getenv("APP_URL") or os.getenv("FRONTEND_URL", "https://cmps271-group3-cbl2.vercel.app")
         import urllib.parse
         verification_url = f"{app_url}/verify-email?email={urllib.parse.quote(email)}"
         
@@ -527,7 +527,7 @@ async def leave_game_participant(payload: GameParticipantLeave):
 @app.post("/forgot-password", status_code=202)
 async def forgot_password(payload: ForgotPasswordRequestCreate):
     ttl_minutes = int(os.getenv("RESET_TOKEN_TTL_MINUTES", "30"))
-    app_url = os.getenv("APP_URL") or os.getenv("FRONTEND_URL", "http://localhost:5173")
+    app_url = os.getenv("APP_URL") or os.getenv("FRONTEND_URL", "https://cmps271-group3-cbl2.vercel.app")
     preview_html = None
     reset_url = None
 
