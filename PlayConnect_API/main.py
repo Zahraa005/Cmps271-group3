@@ -752,11 +752,13 @@ async def startup():
     await connect_to_db()
     await ensure_password_reset_table()
     # start the in-process recurrence worker (runs every minute)
-    try:
-        scheduler.add_job(lambda: asyncio.create_task(process_due_schedules()), 'interval', minutes=1, id='recurrence_worker')
-        scheduler.start()
-    except Exception as e:
-        print("Failed to start recurrence scheduler:", e)
+
+# try:
+#     scheduler.add_job(lambda: asyncio.create_task(process_due_schedules()), 'interval', minutes=1, id='recurrence_worker')
+#     scheduler.start()
+# except Exception as e:
+#     print("Failed to start recurrence scheduler:", e)
+
 
 @app.on_event("shutdown")
 async def shutdown():
