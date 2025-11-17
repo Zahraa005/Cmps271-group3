@@ -17,7 +17,7 @@ import CoachProfilePage from "./pages/CoachProfilePage";
 import AboutPage from './pages/AboutPage';
 import ContactPage from './pages/ContactPage';
 import FAQPage from './pages/FAQPage';
-import ToastPortal from "./components/ToastPortal";
+//import ToastPortal from "./components/ToastPortal";
 import NotificationsPoller from "./components/NotificationsPoller";
 import NotificationBell from "./components/NotificationBell";
 
@@ -78,10 +78,6 @@ export default function App() {
           {/* FAQ Page route */}
           <Route path="/faq" element={<FAQPage />} />
         </Routes>
-
-        {/* ADD: mount once so pop-ups work app-wide */}
-        <ToastPortal />
-        {userId ? <NotificationsPoller userId={userId} /> : null}
 
       </BrowserRouter>
     </AuthProvider>
