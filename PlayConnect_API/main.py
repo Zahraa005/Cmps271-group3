@@ -31,7 +31,8 @@ from PlayConnect_API.security_utils import hash_password, verify_password
 
 from PlayConnect_API.services.mailer import render_template, send_email
 import asyncio
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+
 from PlayConnect_API.recurrence_worker import process_due_schedules
 
 
@@ -751,13 +752,18 @@ async def resend_verification_email(request: EmailVerificationRequest):
 async def startup():
     await connect_to_db()
     await ensure_password_reset_table()
-    # start the in-process recurrence worker (runs every minute)
 
-# try:
-#     scheduler.add_job(lambda: asyncio.create_task(process_due_schedules()), 'interval', minutes=1, id='recurrence_worker')
-#     scheduler.start()
-# except Exception as e:
-#     print("Failed to start recurrence scheduler:", e)
+    try:
+        scheduler.add_job(
+            process_due_schedules,
+            trigger=IntervalTrigger(minutes=1),
+            id="recurrence_worker",
+            replace_existing=True
+        )
+        scheduler.start()
+        print("Scheduler started successfully")
+    except Exception as e:
+        print("Failed to start scheduler:", e)
 
 
 @app.on_event("shutdown")
