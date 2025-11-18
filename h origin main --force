@@ -1,0 +1,216 @@
+* [33m2c2e612[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m fix(scheduler): commented scheduler again.
+* [33md1cc597[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m fix(scheduler): replaced startup scheduler with safe Render-compatible AsyncIO scheduler
+* [33m2017afa[m fix notification pop up
+* [33m132e9aa[m fix: disable scheduler to restore email service
+* [33m395bcf1[m Main wit hte reccuring games POST
+* [33mafdae82[m Started work on the recurring games feature, updated the db for a new table to keep track of what games to be recurrent, added reccuring_schedual model and schema and added POST function in the main and added schedualer package, install command in description
+* [33m2127f59[m Changed email verification and forgot password emails for deployment
+* [33mbd334c7[m removed sing in with google bcz its not finished
+* [33md486d32[m fixed coaches and community redirect when not logged in
+* [33mfe34277[m fixed logo in homepage
+* [33m9e54ab1[m Request Verificatio showing for all Fix
+* [33mabc2ad3[m fixed logout issue
+* [33m2a15392[m test
+* [33mad0531e[m fixed bug in navbar lougout
+* [33m313ea3c[m fix navbar lougout
+* [33m8ba056b[m notifications: remove pop-up toasts, keep bell + dropdown
+* [33m8c8863b[m fix(cors): added vercel frontend domains to CORS
+* [33mfc85a89[m fix(cors): added vercel frontend domains to CORS
+* [33m84c21e3[m fix(api): switched all local URLs to API_BASE_URL for deployment
+* [33mc4645b6[m Update App.jsx path to profile page
+* [33mf6b92f4[m Create activity_log.py
+* [33m00dd65a[m Delete PlayConnect_API/models/User_badges.py
+* [33m3afad4b[m Create user_badging.py
+* [33m8c2f2a4[m Create activity_log.py
+* [33m7ecd5a9[m Create user_badging.py
+* [33m937a731[m Update User_stats.py
+* [33m516cd5d[m Update User_stats.py
+* [33m4a8403f[m Update main.py
+* [33m7b35f1b[m Update ProfilePage.jsx
+* [33mbfc335f[m Update NotificationBell.jsx - minor ui changes
+* [33m65e252b[m Create FilterModal.jsx
+* [33m8851a8d[m Update DashboardPage.jsx
+* [33me3d3a4a[m Created ProfilePage.jsx
+*   [33m7c872cc[m Merge branch 'main' of https://github.com/Jado233/Cmps271-group3
+[32m|[m[33m\[m  
+[32m|[m * [33m8c48cc6[m Match history draft, not yet finished
+[32m|[m * [33m4baf167[m Fixed the cost of games button being buggy and making it hard to input a cost, and made the create game instance promp as a pop up and doesnt push everything else anymore
+* [33m|[m [33m491ba51[m fix: allow Vercel domain in CORS
+* [33m|[m [33m33e3697[m fix: add Vercel rewrite rule for React routing
+* [33m|[m [33mb5027b2[m fix(frontend): updated API URLs and added config.js for deployment
+[33m|[m[33m/[m  
+* [33md153b80[m Prepare for deployment
+* [33m44fec68[m Add requirements.txt for deployment
+* [33mb0836e4[m feat(booking): integrated Book Session button with backend /book-session endpoint (SCRUM-156)
+* [33m2f203b1[m feat(coach-verification): connected VerificationRequestModal to backend and added multi-file upload support (SCRUM-157)
+* [33me806cf8[m feat(coach-verification): implemented /coaches/request-verification endpoint and schema for multi-file upload (SCRUM-157)
+* [33m278440a[m feat(booking): added /book-session endpoint with player join validation (SCRUM-156)
+* [33mf2670f4[m Completed Report Feature
+* [33m819e9cd[m Fixed logout from Coaches Page
+* [33mb352461[m Update ViewProfile.jsx
+* [33mf3e4661[m Update FriendsPage.jsx
+* [33m8ce04e3[m Added the ability for coaches to create and edit listings for coaching
+* [33m9f16f77[m Update FriendsPage.jsx
+* [33m371cb96[m fixes part 2
+* [33me433f51[m Update CoachesListPage.jsx
+* [33m58cb323[m Created VerificationRequestModal.jsx
+* [33m59cb050[m fixes
+* [33mafeb4a0[m feat: notifications API (JSONB metadata fix) + UI pop toasts & bell
+* [33md62dbb3[m feat(coaches): add pending→verified endpoint
+* [33m39f2b40[m notifications bell updated
+* [33m9f7cdd9[m Update FriendsPage.jsx
+* [33m5aeb706[m changed MatchHistory UI, added report button and modal
+* [33mc30be38[m Created ViewProfile.jsx for friends
+* [33md1ad579[m Created ReportModal.jsx
+* [33m4999ba7[m updated friends api to view profile
+* [33m3fec603[m send email notification on report creation
+* [33mb612495[m Save Changes in Coach Profile Edit
+* [33mc3d1c03[m notifications bell
+* [33medaac8d[m Update index.css
+* [33m22919a2[m theme consistency ProfileCreation.jsx
+* [33m2a1779c[m consitencty theme index.css
+* [33m59ff776[m Update index.css
+* [33m17f3ee8[m minor fixes for theme switch LoginPage.jsx
+* [33mcb908ac[m Update ProfileCreation.jsx - added theme switching
+* [33mb6e61ee[m Update index.css
+[33m|[m * [33m30222c5[m[33m ([m[1;35mrefs/stash[m[33m)[m WIP on main: b0c94b8 feat(auth): added functional logout button across coaches pages
+[33m|[m[33m/[m[35m|[m 
+[33m|[m * [33m4a96049[m index on main: b0c94b8 feat(auth): added functional logout button across coaches pages
+[33m|[m[33m/[m  
+* [33mb0c94b8[m feat(auth): added functional logout button across coaches pages
+* [33mc59cfe3[m feat(auth): added login attempt limiter (SCRUM-142)
+* [33mfd1f568[m feat(coaches): connect Coach profile UI to backend data
+* [33mce4667a[m feat(coaches): integrate DB data into Coaches list page UI
+* [33m68d9df9[m feat(ui): add FAQ page with common user questions
+* [33m66f2ff2[m feat(ui): add Contact page with support info
+* [33me03618a[m feat(ui): add About page with mission content and styling
+* [33mc65b5b6[m feat(ui): link new About, Contact, and FAQ pages in footer
+* [33m7c60bfd[m feat(router): register new pages and navigation routes
+* [33m9754f83[m fix(api): adjust coach endpoints and schema for frontend compatibility
+* [33m8b38643[m Finished Password Reset (APi + UI)
+* [33m7b12197[m Added Password Encryption
+* [33m0a2d1b6[m Fixed JWT tokens, where now they log the user out when their token expires. Token will stay valid for4 hours
+* [33mb8e0d32[m Update FriendsPage: Add profile modal, pending requests tab, and cancel functionality
+*   [33m9962be0[m Merge pull request #4 from Jado233/friends-fix
+[36m|[m[1;31m\[m  
+[36m|[m * [33mca58d12[m[33m ([m[1;31morigin/friends-fix[m[33m, [m[1;32mfriends-fix[m[33m)[m friends: implement full pending request flow + UI integration
+[36m|[m * [33mcbb3dc7[m friends: implement full pending request flow + UI integration
+[36m|[m[36m/[m  
+* [33mce0f9ff[m chore: ignore __pycache__ and pyc files
+* [33mb06b267[m Added email verification sequence to the login and registration.
+* [33m9ca06d1[m feat(friends): added FriendsPage route and UI integration
+* [33m6cd91c4[m feat(friends): added FriendsPage UI and Match_Histories schema
+* [33m5cbbe67[m auth: add forgot-password + reset-password POST APIs (hashed token)
+* [33mf7e15c3[m wip: friends api
+* [33m97de6c0[m api: GET /friends (filters: user_id, friend_id, status + pagination)
+* [33mdd7fb31[m Created the EmailsLogs schema
+* [33m6bf99aa[m Created Password_reset_tokens schema
+* [33m28539f2[m api: GET /match-histories (filters + pagination + fixes)
+* [33m86d477c[m api: GET /match-histories ( params + pagination + error handling)
+* [33mad29bd2[m chore: touch main.py to verify push path
+* [33mb994f82[m match history schema import
+* [33m1af9f6b[m Create Match_Histories.py model
+* [33m5eb3173[m Added Friends POST api
+* [33mb69b012[m made report PUT api
+* [33m752cf9b[m Made the PUT report api
+* [33m55cd7dc[m Added the ability to view and edit profile from the dashboard page
+* [33me345894[m Added Match History UI and installed axios dep
+* [33m861809d[m Friends Delete API
+* [33maf9e4ff[m Update main.py
+* [33m07e111a[m Create Friends.py schema
+* [33md85d5c1[m added post notifications
+* [33m661e314[m added report get API
+* [33m658355e[m Add header + finalize Report schema (SCRUM-109)
+* [33m3e3d490[m fixed forgot pass
+* [33m7280c8d[m Integrate mailer service with password reset flow
+* [33m7ed722a[m Add Notifications schema (NotificationCreate, Read, MarkRead)
+* [33mc32810f[m feat(email): add PlayConnect email templates + notification model
+* [33ma0654b8[m Added a light mode toggle to the login page
+* [33m690adb1[m fix(ui): replaced column layout with grid to align game cards
+* [33m02e5a3c[m  server-side filters endpoint + UI filter bar with paging & sort
+* [33mbe40fe0[m Updated DashboardPage.jsx UI
+* [33ma389d5c[m Added the ability to join and leave games. Also redid site nevigation mainly going to the dashboard when logged in when pressed games or Find your games or goes to the login page if not logged in
+* [33m81af240[m Add waitlist API and Dashboard UI integration
+* [33ma00a710[m .gitignore not working trying fix
+*   [33m8a5e191[m Merge branch 'main' of https://github.com/Jado233/Cmps271-group3
+[1;32m|[m[1;33m\[m  
+[1;32m|[m * [33m88074ef[m Implemented Theme Switching in Register Page
+[1;32m|[m * [33me33f41d[m Modified UI for Login Page
+[1;32m|[m *   [33m002bce4[m Merge remote-tracking branch 'origin/main'
+[1;32m|[m [1;34m|[m[1;35m\[m  
+[1;32m|[m * [1;35m|[m [33m1153349[m Added three.js dependencies for UI Background
+* [1;35m|[m [1;35m|[m [33mad0e480[m Added Edit Game modal and Delete feature to Dashboard + Update API in main.py
+[1;35m|[m [1;35m|[m[1;35m/[m  
+[1;35m|[m[1;35m/[m[1;35m|[m   
+* [1;35m|[m [33mf2d2786[m Created Waitlist.py schema
+[1;35m|[m[1;35m/[m  
+* [33m0abdf9a[m fixed typo in .gitignore
+* [33mdd2574b[m Untrack venv/cache/node_modules; keep only source
+* [33mcb5dfce[m Update main.py; added PUT game_instance & GET to view waitlist
+*   [33m3c1e46d[m Resolved merge conflict in HomePage.jsx by keeping my version
+[1;36m|[m[31m\[m  
+[1;36m|[m * [33m6a6285b[m Added more navigation options to the home page: When logged in (only when token is valid) you can access the dashboard when you clicck the games option in the home page. Also, when not logged in, and clicked on the games button in the home page it will direct the user to the login page.
+[1;36m|[m * [33m467c4e4[m Added Waitlist Api's for joining (POST) and for leaving (DELETE) and also a GET api for the waitlist)
+[1;36m|[m *   [33m29e2cce[m Merge branch 'main' of https://github.com/Jado233/Cmps271-group3
+[1;36m|[m [32m|[m[33m\[m  
+[1;36m|[m [32m|[m * [33m9066cda[m Added Game_participants schema and changed the token expire to expire in 4 hours instead of 24 hours
+[1;36m|[m * [33m|[m [33m31db620[m Update main.py
+[1;36m|[m [33m|[m[33m/[m  
+* [33m/[m [33m28c032a[m My local changes before pulling
+[33m|[m[33m/[m  
+* [33m54b7d65[m Made the registration page and profile page function. I made it so that when the user registers, they go directly to the profile creation page and then they go to the dashboard
+* [33m32da4ce[m Fix .gitignore to ignore Python cache files
+*   [33m374ca14[m Merge branch 'main' of https://github.com/Jado233/Cmps271-group3
+[34m|[m[35m\[m  
+[34m|[m * [33m5b5fb3c[m Changed the users email being displayed in the dashboard welcome message to the users name, also made the playconnect logo in the login and dashboard page redirect to the home page when clicked. Finally i made the sign up button redirect the user to the sign up page.
+[34m|[m * [33m01dfd10[m  add profile-creation POST endpoint
+[34m|[m * [33m8a4008f[m Added login verification and now the dashboard now tracks what user is logged in. This was done by using JWT on the frontend side. Also i needed to create a login schema in order to make it register the users input
+[34m|[m * [33maded1df[m added the dashboard page to the project where you can see the games going on with their details and the ability to add games (not fully done), also added the sports schema and get api in order to select them in the drop down menu when creating a game
+[34m|[m *   [33me0c1b27[m Merge pull request #3 from Jado233/feature/add-game-badges-models
+[34m|[m [36m|[m[1;31m\[m  
+[34m|[m [36m|[m * [33m7149b74[m[33m ([m[1;31morigin/feature/add-game-badges-models[m[33m)[m Created Login Schema
+[34m|[m * [1;31m|[m [33m6bf4db1[m Update App.jsx
+[34m|[m * [1;31m|[m [33m14eeb5e[m added registration path from App.jsx
+[34m|[m * [1;31m|[m [33mba77ce1[m Create RegistrationPage.jsx
+[34m|[m * [1;31m|[m   [33m747224b[m Merge branch 'feature/forgot-password'
+[34m|[m [1;32m|[m[1;33m\[m [1;31m\[m  
+[34m|[m [1;32m|[m * [1;31m|[m [33mcdd9474[m[33m ([m[1;31morigin/feature/forgot-password[m[33m)[m Fixed error regarding sending emails in Forgot Password
+[34m|[m * [1;33m|[m [1;31m|[m [33m67af912[m added Login page
+[34m|[m * [1;33m|[m [1;31m|[m [33m7ebc649[m made slight modifications to registration for it to function with the existing POST api
+[34m|[m * [1;33m|[m [1;31m|[m [33mc1ab64a[m Merge pull request #2 from Jado233/feature/forgot-password
+[34m|[m [1;34m|[m[1;33m\[m[1;33m|[m [1;31m|[m 
+[34m|[m [1;34m|[m * [1;31m|[m   [33mb3e3631[m Merge remote-tracking branch 'origin/main' into feature/forgot-password
+[34m|[m [1;34m|[m [1;36m|[m[31m\[m [1;31m\[m  
+[34m|[m [1;34m|[m * [31m|[m [1;31m|[m [33m0460082[m Created Forgot_Password Post API
+[34m|[m * [31m|[m [31m|[m [1;31m|[m [33ma608ba8[m registration.py
+[34m|[m [31m|[m [31m|[m[31m/[m [1;31m/[m  
+[34m|[m [31m|[m[31m/[m[31m|[m [1;31m|[m   
+[34m|[m * [31m|[m [1;31m|[m [33m9418e80[m Create registration.py
+[34m|[m [31m|[m[31m/[m [1;31m/[m  
+* [31m/[m [1;31m/[m [33m42975a5[m Ignore Python cache files
+[31m|[m[31m/[m [1;31m/[m  
+* [1;31m|[m   [33mb69953d[m Merge branch 'main' of https://github.com/Jado233/Cmps271-group3
+[32m|[m[33m\[m [1;31m\[m  
+[32m|[m * [1;31m|[m [33me7a9a47[m Added Game_Instance schema and its GET and POST api
+* [33m|[m [1;31m|[m [33m92becab[m Added HomePage with video hero and updated App.jsx.
+[33m|[m[33m/[m [1;31m/[m  
+* [1;31m|[m [33maa082ed[m Merge pull request #1 from Jado233/feature/add-game-badges-models
+[34m|[m[1;31m\[m[1;31m|[m 
+[34m|[m * [33maed64b7[m Add badges file
+[34m|[m * [33macd822b[m Add Game_Instance and Badges models
+[34m|[m[34m/[m  
+* [33m3f81c22[m fixed minor issues and added registration schema and registrion POST API
+* [33m1d75f6a[m Created Profile Creation Schema
+*   [33m22d2dd5[m Merge branch 'main' of https://github.com/Jado233/Cmps271-group3 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~:wq
+[36m|[m[1;31m\[m  
+[36m|[m * [33m92ca014[m Created the User_badges Model
+[36m|[m * [33m3fc32b8[m Created Game_participants model
+[36m|[m * [33mff894c1[m created sport.py
+[36m|[m * [33mfa26ff7[m created report.py
+* [1;31m|[m [33m81a201f[m Added Coaches, User_stats, and ForgotPasswordRequest schemas, plus updated main.py
+[1;31m|[m[1;31m/[m  
+* [33m024d718[m Added friends and waitlist models and fixed the users model. Also added a POST api for the whole Users table to test the Users model.
+* [33ma5f7749[m UI Profile Creation Page
+* [33m74c5ca2[m Added connection to the database using asyncpg and dotenv to manage environment variables(this is due to security reasons, the actual database URL is not included in the code). I will send you the .env file separately, please make sure to add it to your .gitignore file to avoid pushing sensitive information to version control. I also begun work on the Users model and schema, which will be used to manage user data in the database, and did GET for the Users.
+* [33mb83aca4[m Created the folders for PlayConnect_API and PlayConnect_UI and installed React in the UI folder and Fast Api in the API folder.
+* [33mf499ea6[m Initial commit
