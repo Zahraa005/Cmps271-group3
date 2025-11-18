@@ -759,7 +759,7 @@ async def startup():
 # except Exception as e:
 #     print("Failed to start recurrence scheduler:", e)
 
-
+#testing without scheduler
 @app.on_event("shutdown")
 async def shutdown():
     # stop scheduler first
