@@ -458,17 +458,23 @@ async def join_game_participant(payload: GameParticipantJoin):
     """
     try:
         async with Database.pool.acquire() as connection:
-            # Ensure game exists
+            # Ensure game exists and get full details including sport name
             game = await connection.fetchrow(
-                'SELECT game_id, sport_id FROM public."Game_instance" WHERE game_id = $1 LIMIT 1',
+                '''
+                SELECT gi.game_id, gi.sport_id, gi.location, gi.start_time, gi.duration_minutes, 
+                       gi.skill_level, s.name AS sport_name
+                FROM public."Game_instance" AS gi
+                JOIN public."Sports" AS s ON s.sport_id = gi.sport_id
+                WHERE gi.game_id = $1 LIMIT 1
+                ''',
                 payload.game_id,
             )
             if not game:
                 raise HTTPException(status_code=404, detail="Game not found")
 
-            # Ensure user exists
+            # Ensure user exists and get email/first_name for email
             user = await connection.fetchrow(
-                'SELECT user_id FROM public."Users" WHERE user_id = $1 LIMIT 1',
+                'SELECT user_id, email, first_name FROM public."Users" WHERE user_id = $1 LIMIT 1',
                 payload.user_id,
             )
             if not user:
@@ -493,6 +499,39 @@ async def join_game_participant(payload: GameParticipantJoin):
                     games_played_delta=1,
                     xp_delta=XP_REWARDS["play_game"]
                 )
+                
+                # Send email notification when user successfully joins
+                try:
+                    user_email = user["email"]
+                    first_name = user["first_name"] or "Player"
+                    sport_name = game["sport_name"] or "Game"
+                    location = game["location"] or "Location TBD"
+                    
+                    # Format start_time
+                    start_time_dt = game["start_time"]
+                    if isinstance(start_time_dt, datetime):
+                        start_time_str = start_time_dt.strftime("%A, %B %d, %Y at %I:%M %p")
+                    else:
+                        start_time_str = str(start_time_dt)
+                    
+                    frontend_url = os.getenv("APP_URL") or os.getenv("FRONTEND_URL", "https://cmps271-group3-cbl2.vercel.app")
+                    dashboard_url = f"{frontend_url}/dashboard"
+                    
+                    context = {
+                        "first_name": first_name,
+                        "sport_name": sport_name,
+                        "location": location,
+                        "start_time": start_time_str,
+                        "duration_minutes": game["duration_minutes"],
+                        "skill_level": game["skill_level"] or "N/A",
+                        "dashboard_url": dashboard_url,
+                    }
+                    html = render_template("PlayConnect_API/templates/emails/game_joined.html", context)
+                    await send_email(user_email, f"Successfully Joined {sport_name} Game!", html)
+                except Exception as email_err:
+                    # Log but don't fail the request if email fails
+                    print(f"[WARNING] Failed to send join game email: {repr(email_err)}")
+            
             return {
                 "message": "Joined game" if inserted else "Already participating",
                 "game_id": payload.game_id,
@@ -512,6 +551,23 @@ async def leave_game_participant(payload: GameParticipantLeave):
     """
     try:
         async with Database.pool.acquire() as connection:
+            # First, fetch game details and user info before deleting (for email)
+            game = await connection.fetchrow(
+                '''
+                SELECT gi.game_id, gi.sport_id, gi.location, gi.start_time, gi.duration_minutes, 
+                       gi.skill_level, s.name AS sport_name
+                FROM public."Game_instance" AS gi
+                JOIN public."Sports" AS s ON s.sport_id = gi.sport_id
+                WHERE gi.game_id = $1 LIMIT 1
+                ''',
+                payload.game_id,
+            )
+            
+            user = await connection.fetchrow(
+                'SELECT user_id, email, first_name FROM public."Users" WHERE user_id = $1 LIMIT 1',
+                payload.user_id,
+            )
+            
             result = await connection.execute(
                 'DELETE FROM public."Game_participants" WHERE game_id = $1 AND user_id = $2',
                 payload.game_id,
@@ -520,6 +576,40 @@ async def leave_game_participant(payload: GameParticipantLeave):
             deleted = result.split(" ")[-1]
             if deleted == "0":
                 raise HTTPException(status_code=404, detail="Participant not found for game")
+            
+            # Send email notification when user successfully leaves
+            if game and user:
+                try:
+                    user_email = user["email"]
+                    first_name = user["first_name"] or "Player"
+                    sport_name = game["sport_name"] or "Game"
+                    location = game["location"] or "Location TBD"
+                    
+                    # Format start_time
+                    start_time_dt = game["start_time"]
+                    if isinstance(start_time_dt, datetime):
+                        start_time_str = start_time_dt.strftime("%A, %B %d, %Y at %I:%M %p")
+                    else:
+                        start_time_str = str(start_time_dt)
+                    
+                    frontend_url = os.getenv("APP_URL") or os.getenv("FRONTEND_URL", "https://cmps271-group3-cbl2.vercel.app")
+                    dashboard_url = f"{frontend_url}/dashboard"
+                    
+                    context = {
+                        "first_name": first_name,
+                        "sport_name": sport_name,
+                        "location": location,
+                        "start_time": start_time_str,
+                        "duration_minutes": game["duration_minutes"],
+                        "skill_level": game["skill_level"] or "N/A",
+                        "dashboard_url": dashboard_url,
+                    }
+                    html = render_template("PlayConnect_API/templates/emails/game_left.html", context)
+                    await send_email(user_email, f"You Left {sport_name} Game", html)
+                except Exception as email_err:
+                    # Log but don't fail the request if email fails
+                    print(f"[WARNING] Failed to send leave game email: {repr(email_err)}")
+            
             return {
                 "message": "Left game",
                 "game_id": payload.game_id,
@@ -1391,9 +1481,9 @@ async def book_session(
             if game["participants_count"] >= game["max_players"]:
                 raise HTTPException(status_code=400, detail="This session is already full")
 
-            # 2️⃣ Ensure user exists
+            # 2️⃣ Ensure user exists and get email/first_name for email
             user = await connection.fetchrow(
-                'SELECT user_id FROM public."Users" WHERE user_id = $1 LIMIT 1',
+                'SELECT user_id, email, first_name FROM public."Users" WHERE user_id = $1 LIMIT 1',
                 user_id
             )
             if not user:
@@ -1424,14 +1514,48 @@ async def book_session(
                 '''
                 SELECT 
                     gi.game_id, gi.location, gi.start_time, gi.duration_minutes,
-                    gi.skill_level, gi.max_players, gi.status,
-                    u.first_name AS coach_first_name, u.last_name AS coach_last_name
+                    gi.skill_level, gi.max_players, gi.status, gi.sport_id,
+                    u.first_name AS coach_first_name, u.last_name AS coach_last_name,
+                    s.name AS sport_name
                 FROM public."Game_instance" AS gi
                 JOIN public."Users" AS u ON u.user_id = gi.host_id
+                JOIN public."Sports" AS s ON s.sport_id = gi.sport_id
                 WHERE gi.game_id = $1
                 ''',
                 game_id
             )
+
+            # 6️⃣ Send email notification when user successfully books session
+            try:
+                user_email = user["email"]
+                first_name = user["first_name"] or "Player"
+                sport_name = booking["sport_name"] or "Game"
+                location = booking["location"] or "Location TBD"
+                
+                # Format start_time
+                start_time_dt = booking["start_time"]
+                if isinstance(start_time_dt, datetime):
+                    start_time_str = start_time_dt.strftime("%A, %B %d, %Y at %I:%M %p")
+                else:
+                    start_time_str = str(start_time_dt)
+                
+                frontend_url = os.getenv("APP_URL") or os.getenv("FRONTEND_URL", "https://cmps271-group3-cbl2.vercel.app")
+                dashboard_url = f"{frontend_url}/dashboard"
+                
+                context = {
+                    "first_name": first_name,
+                    "sport_name": sport_name,
+                    "location": location,
+                    "start_time": start_time_str,
+                    "duration_minutes": booking["duration_minutes"],
+                    "skill_level": booking["skill_level"] or "N/A",
+                    "dashboard_url": dashboard_url,
+                }
+                html = render_template("PlayConnect_API/templates/emails/game_joined.html", context)
+                await send_email(user_email, f"Successfully Joined {sport_name} Game!", html)
+            except Exception as email_err:
+                # Log but don't fail the request if email fails
+                print(f"[WARNING] Failed to send book session email: {repr(email_err)}")
 
             return {
                 "message": "Session booked successfully!",

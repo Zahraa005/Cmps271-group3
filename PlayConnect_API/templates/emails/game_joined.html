@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>You Joined a Game! | PlayConnect</title>
+</head>
+<body style="margin:0;padding:0;background-color:#fdfaf7;font-family:'Inter',Arial,sans-serif;color:#333;">
+  <div style="max-width:600px;margin:40px auto;background-color:#fffefc;border-radius:16px;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,0.08);">
+    <!-- Gradient Header -->
+    <div style="background:linear-gradient(90deg,#8b5cf6,#ec4899,#f472b6);padding:24px;text-align:center;">
+      <h1 style="color:#fff;margin:0;font-size:28px;font-weight:800;">PlayConnect</h1>
+      <p style="color:#fdf2f8;margin-top:4px;">You're all set! 🎉</p>
+    </div>
+
+    <!-- Body -->
+    <div style="padding:32px 24px;">
+      <h2 style="color:#4c1d95;margin-top:0;">Successfully Joined Game</h2>
+      <p>Hi <strong>{{first_name}}</strong>,</p>
+      <p>Great news! You've successfully joined a game session. Here are the details:</p>
+      
+      <!-- Game Details Card -->
+      <div style="background-color:#f9fafb;border-left:4px solid #7c3aed;padding:20px;margin:24px 0;border-radius:8px;">
+        <h3 style="color:#4c1d95;margin-top:0;font-size:18px;">{{sport_name}}</h3>
+        <p style="margin:8px 0;color:#374151;"><strong>📍 Location:</strong> {{location}}</p>
+        <p style="margin:8px 0;color:#374151;"><strong>📅 Date & Time:</strong> {{start_time}}</p>
+        <p style="margin:8px 0;color:#374151;"><strong>⏱️ Duration:</strong> {{duration_minutes}} minutes</p>
+        <p style="margin:8px 0;color:#374151;"><strong>⚡ Skill Level:</strong> {{skill_level}}</p>
+      </div>
+
+      <p>We're excited to have you participate! Make sure to arrive on time and bring your best game.</p>
+      <div style="text-align:center;margin:30px 0;">
+        <a href="{{dashboard_url}}" style="background-color:#7c3aed;color:white;text-decoration:none;padding:14px 36px;border-radius:10px;font-weight:600;display:inline-block;">View Game Details</a>
+      </div>
+      <p>If you have any questions, feel free to reach out to the host or check your dashboard for updates.</p>
+      <p style="color:#777;font-size:14px;">— The PlayConnect Team</p>
+    </div>
+  </div>
+</body>
+</html>
+
